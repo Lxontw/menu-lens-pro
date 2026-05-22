@@ -1,5 +1,31 @@
 # MenuLens Pro – 購物車菜單頁功能規格書
 
+## v1.2 修正項目 (2026-05-22)
+
+### 修正 1：翻譯結果快取避免重複掃描
+- 每次掃描成功後，將 `appState.results` 儲存至 `localStorage`（key: `menulens_last_results`）。
+- 頁面初始化時，若 `localStorage` 中有上次結果，直接顯示在結果頁（`results-view`），不需重新掃描。
+- 使用者仍可點「重新掃描」覆蓋舊結果。
+- 節省 API Token 與使用者時間。
+
+### 修正 2：原文比譯文字體略小
+- 結果頁與菜單頁中，`nameOriginal`（日文原文）字體設定為 `text-base`，比 `nameTranslated`（中文譯文）的 `text-lg` 小一級。
+- 維持可讀性但讓譯文更突出。
+
+### 修正 3：防止翻譯結果重複
+- AI 回傳結果時，依 `nameOriginal` 去重：若購物車或結果中已存在相同日文名稱的項目，則跳過不重複加入。
+- 適用於 `analyzeMenu` 回傳後寫入 `appState.results` 的階段。
+
+### 修正 4：飲食提醒／過敏原標籤放大
+- 結果頁的 `dietary_tags` 與 `allergen_warning` 標籤從 `text-[10px]` 放大至 `text-xs`，提升可讀性。
+
+### 修正 5：生成菜單頁也顯示飲食標示
+- `renderOrderMenu()` 渲染的菜單項目卡片中，加入 `dietary_tags` 與 `allergen_warning` 的顯示（與結果頁相同格式）。
+
+### 備註：收藏方向
+- 目前收藏為「收藏這道菜」，存於 `localStorage`。
+- 收藏店家功能（GPS 定位、編輯介紹）列為日後討論項目。
+
 ## v1.1 修正項目 (2026-05-22)
 
 以下四個修正需在既有實作上調整：

@@ -22,7 +22,7 @@ const appState = {
     isDrawerOpen: false,
     isProcessing: false,
     stream: null,
-    results: [],
+    results: JSON.parse(localStorage.getItem('menulens_last_results') || '[]'),
     order: [], // Currently selected items for ordering
     favorites: JSON.parse(localStorage.getItem('menulens_favorites') || '[]'),
     exchangeRates: { TWD: 0.215, HKD: 0.052, USD: 0.0067 }
@@ -73,6 +73,14 @@ const UIBridge = {
             const rate = appState.exchangeRates[appState.settings.currency];
             const itemConv = item.price * item.qty * rate;
 
+            // 渲染飲食標記與過敏警告 (Fix 5)
+            const tagsHtml = item.dietary_tags && item.dietary_tags.length > 0 
+                ? item.dietary_tags.map(t => `<span class="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded border border-emerald-100 font-medium">${t}</span>`).join('') 
+                : '';
+            const warningHtml = item.allergen_warning 
+                ? `<span class="text-xs px-1.5 py-0.5 bg-red-50 text-red-600 rounded border border-red-100 font-bold">⚠️ ${item.allergen_warning}</span>` 
+                : '';
+
             return `
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex items-center p-4 gap-4 animate-fade-in">
                     <!-- 左側：數量與收藏星 -->
@@ -93,10 +101,14 @@ const UIBridge = {
                             <span class="text-sm font-medium text-indigo-600">¥${(item.price * item.qty).toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between items-baseline">
-                            <p class="text-lg font-medium text-slate-500 truncate">${item.nameOriginal}</p>
+                            <p class="text-base font-medium text-slate-500 truncate">${item.nameOriginal}</p>
                             <span class="text-sm font-medium text-slate-600">
                                 ${this.currencyFormat(itemConv)}
                             </span>
+                        </div>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            ${tagsHtml}
+                            ${warningHtml}
                         </div>
                     </div>
                 </div>
@@ -145,12 +157,12 @@ const UIBridge = {
             const orderItem = appState.order.find(o => o.nameOriginal === item.nameOriginal);
             const qty = orderItem ? orderItem.qty : 0;
             
-            // 渲染飲食標記與過敏警告
+            // 渲染飲食標記與過敏警告 (Fix 4: 放大至 text-xs)
             const tagsHtml = item.dietary_tags && item.dietary_tags.length > 0 
-                ? item.dietary_tags.map(t => `<span class="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded border border-emerald-100 font-medium">${t}</span>`).join('') 
+                ? item.dietary_tags.map(t => `<span class="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded border border-emerald-100 font-medium">${t}</span>`).join('') 
                 : '';
             const warningHtml = item.allergen_warning 
-                ? `<span class="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded border border-red-100 font-bold">⚠️ ${item.allergen_warning}</span>` 
+                ? `<span class="text-xs px-1.5 py-0.5 bg-red-50 text-red-600 rounded border border-red-100 font-bold">⚠️ ${item.allergen_warning}</span>` 
                 : '';
             
             return `
@@ -166,7 +178,7 @@ const UIBridge = {
                             <span class="text-lg font-bold text-indigo-600 whitespace-nowrap">¥${item.price.toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between items-baseline gap-2">
-                            <h4 class="text-lg font-medium text-slate-500 truncate">${item.nameOriginal}</h4>
+                            <h4 class="text-base font-medium text-slate-500 truncate">${item.nameOriginal}</h4>
                             ${item.recommendation ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">推薦</span>' : ''}
                         </div>
                         <p class="text-sm text-slate-400 mt-1 truncate">${item.description}</p>
@@ -411,7 +423,20 @@ const EventBus = {
             try {
                 const base64 = await DeviceUtils.fileToBase64(file);
                 const data = await CoreLogic.analyzeMenu(base64);
-                appState.results = data.items;
+                
+                // Fix 3: 去重邏輯
+                const uniqueNewItems = [];
+                data.items.forEach(newItem => {
+                    const isDuplicate = uniqueNewItems.some(u => u.nameOriginal === newItem.nameOriginal) || 
+                                       appState.order.some(o => o.nameOriginal === newItem.nameOriginal) ||
+                                       appState.results.some(r => r.nameOriginal === newItem.nameOriginal);
+                    if (!isDuplicate) uniqueNewItems.push(newItem);
+                });
+                
+                appState.results.push(...uniqueNewItems);
+                // Fix 1: 儲存至快取
+                localStorage.setItem('menulens_last_results', JSON.stringify(appState.results));
+                
                 appState.currentView = 'results';
                 DeviceUtils.stopCamera();
                 UIBridge.switchView('results');
@@ -429,7 +454,20 @@ const EventBus = {
             UIBridge.setProcessing(true, '分析中...');
             try {
                 const data = await CoreLogic.analyzeMenu(imageData);
-                appState.results = data.items;
+                
+                // Fix 3: 去重邏輯
+                const uniqueNewItems = [];
+                data.items.forEach(newItem => {
+                    const isDuplicate = uniqueNewItems.some(u => u.nameOriginal === newItem.nameOriginal) || 
+                                       appState.order.some(o => o.nameOriginal === newItem.nameOriginal) ||
+                                       appState.results.some(r => r.nameOriginal === newItem.nameOriginal);
+                    if (!isDuplicate) uniqueNewItems.push(newItem);
+                });
+                
+                appState.results.push(...uniqueNewItems);
+                // Fix 1: 儲存至快取
+                localStorage.setItem('menulens_last_results', JSON.stringify(appState.results));
+                
                 appState.currentView = 'results';
                 DeviceUtils.stopCamera();
                 UIBridge.switchView('results');
@@ -441,6 +479,10 @@ const EventBus = {
             }
         };
         document.getElementById('rescan-btn').onclick = () => {
+            // Fix 1: 重新掃描時清除舊結果
+            appState.results = [];
+            localStorage.removeItem('menulens_last_results');
+            
             appState.currentView = 'scanner';
             UIBridge.switchView('scanner');
             DeviceUtils.startCamera();
@@ -576,7 +618,16 @@ const EventBus = {
 // Start Application
 document.addEventListener('DOMContentLoaded', () => {
     UIBridge.updateSettingsUI();
-    UIBridge.switchView('landing');
+    
+    // Fix 1: 若有上次結果，直接顯示
+    if (appState.results.length > 0) {
+        appState.currentView = 'results';
+        UIBridge.switchView('results');
+        UIBridge.renderResults(appState.results);
+    } else {
+        UIBridge.switchView('landing');
+    }
+    
     EventBus.init();
     if (!appState.settings.apiKey) {
         setTimeout(() => {
