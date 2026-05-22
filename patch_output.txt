@@ -1,0 +1,23 @@
+Warning: True color (24-bit) support not detected. Using a terminal with true color enabled will result in a better visual experience.
+Ripgrep is not available. Falling back to GrepTool.
+API returned invalid content after all retries. Full report available at: /tmp/gemini-client-error-generateJson-invalid-content-2026-05-22T00-02-32-432Z.json Error: Retry attempts exhausted
+    at retryWithBackoff (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:270798:9)
+    at async BaseLlmClient._generateWithRetry (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:270941:14)
+    at async BaseLlmClient.generateJson (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:270848:21)
+    at async NumericalClassifierStrategy.route (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:318678:28)
+    at async CompositeStrategy.route (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:318743:26)
+    at async ModelRouterService.route (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:318904:18)
+    at async GeminiClient.processTurn (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:306691:24)
+    at async GeminiClient.sendMessageStream (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:306797:14)
+    at async file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/gemini-QSTQ2DBG.js:10859:26
+    at async main (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/gemini-QSTQ2DBG.js:16137:5)
+[Routing] NumericalClassifierStrategy failed: Error: Failed to generate content: Retry attempts exhausted
+    at BaseLlmClient._generateWithRetry (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:270971:13)
+    at async BaseLlmClient.generateJson (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:270848:21)
+    at async NumericalClassifierStrategy.route (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:318678:28)
+    at async CompositeStrategy.route (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:318743:26)
+    at async ModelRouterService.route (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:318904:18)
+    at async GeminiClient.processTurn (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:306691:24)
+    at async GeminiClient.sendMessageStream (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:306797:14)
+    at async file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/gemini-QSTQ2DBG.js:10859:26
+    at async main (file:///home/lxon/.nvm/versions/node/v20.20.2/lib/node_modules/@google/gemini-cli/bundle/gemini-QSTQ2DBG.js:16137:5)

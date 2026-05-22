@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MenuLens-Pro | 智慧菜單翻譯</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .glass-morphism { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+        .view-transition { transition: transform 0.3s ease-in-out, opacity 0.2s ease; }
+        .drawer-closed { transform: translateX(100%); }
+        .drawer-open { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 overflow-x-hidden">
+
+    <!-- App Container -->
+    <div class="max-w-md mx-auto min-h-screen flex flex-col relative overflow-hidden bg-white shadow-2xl">
+        
+        <!-- Header -->
+        <header class="sticky top-0 z-40 w-full px-6 py-4 flex justify-between items-center glass-morphism border-b border-slate-100">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">MenuLens Pro</h1>
+            <button id="settings-btn" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                <i class="fas fa-cog"></i>
+            </button>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 relative">
+            
+            <!-- 1. Landing Page View (歡迎介面) -->
+            <section id="landing-view" class="absolute inset-0 z-30 flex flex-col items-center justify-center p-8 bg-white view-transition">
+                <div class="mb-8 text-center">
+                    <div class="w-24 h-24 bg-indigo-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                        <i class="fas fa-camera-retro text-4xl text-indigo-600"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold mb-2">探索異國美味</h2>
+                    <p class="text-slate-500 leading-relaxed">即時掃描日本菜單，為您翻譯中文、換算匯率並標註飲食偏好。</p>
+                </div>
+                <button id="start-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-indigo-200 active:scale-95 transition-transform">
+                    開啟掃描器
+                </button>
+            </section>
+
+            <!-- 2. Scanner Interface View (掃描器介面) -->
+            <section id="scanner-view" class="absolute inset-0 z-20 flex flex-col bg-black hidden view-transition">
+                <!-- Camera Preview Area -->
+                <div id="camera-preview" class="flex-1 relative overflow-hidden bg-slate-900 flex items-center justify-center">
+                    <!-- Scanning Animation Overlay -->
+                    <div id="scan-line" class="absolute top-0 left-0 w-full h-1 bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.8)] opacity-0"></div>
+                    <p class="text-white/50 text-sm">正在等待相機權限...</p>
+                </div>
+
+                <!-- Scanner Controls -->
+                <div class="p-8 bg-slate-900 flex flex-col items-center gap-6 safe-bottom">
+                    <input type="file" id="file-input" accept="image/*" class="hidden">
+                    <div id="status-indicator" class="text-indigo-400 text-sm font-medium animate-pulse">
+                        請將菜單置於框內
+                    </div>
+                    <div class="flex items-center justify-between w-full">
+                        <button id="upload-btn" class="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white">
+                            <i class="fas fa-image text-xl"></i>
+                        </button>
+                        <button id="scan-btn" class="w-20 h-20 rounded-full border-4 border-white/30 flex items-center justify-center">
+                            <div class="w-16 h-16 rounded-full bg-white shadow-lg active:scale-90 transition-transform"></div>
+                        </button>
+                        <button id="gallery-btn" class="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white">
+                            <i class="fas fa-history text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Result Gallery View (結果展示區) -->
+            <section id="results-view" class="absolute inset-0 z-10 flex flex-col bg-slate-50 hidden view-transition overflow-y-auto p-4 pb-40">
+                <div class="flex items-center justify-between mb-4 px-2">
+                    <h3 class="font-bold text-lg">翻譯結果</h3>
+                    <button id="rescan-btn" class="text-indigo-600 text-sm font-medium">重新掃描</button>
+                </div>
+                
+                <div id="results-list" class="space-y-4"></div>
+            </section>
+
+            <!-- Order Summary Panel (購物車概念) -->
+            <div id="order-summary-panel" class="fixed bottom-0 left-0 right-0 z-40 transform translate-y-full transition-transform duration-300 safe-bottom">
+                <div class="max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-10px_25px_rgba(0,0,0,0.1)] rounded-t-3xl overflow-hidden">
+                    
+                    <!-- 1. 購物車觸發條 (平時顯示) -->
+                    <div id="cart-trigger" class="p-4 flex justify-between items-center bg-indigo-600 text-white cursor-pointer active:bg-indigo-700 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                                <i class="fas fa-shopping-cart text-sm"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs opacity-80 font-medium">我的點餐單</div>
+                                <div class="font-bold" id="cart-summary-text">0 件 | ¥0</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="cart-total-converted" class="text-sm font-medium bg-white/20 px-2 py-1 rounded-lg">NT$ 0</span>
+                            <i id="cart-chevron" class="fas fa-chevron-up transition-transform duration-300"></i>
+                        </div>
+                    </div>
+
+                    <!-- 2. 詳細清單區 (點擊後往上推) -->
+                    <div id="cart-content" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-white">
+                        <div class="p-4 flex justify-between items-center border-b border-slate-100">
+                            <h4 class="font-bold text-slate-800">確認點餐內容</h4>
+                            <button id="clear-order-btn" class="text-xs text-red-500 hover:text-red-600 underline">全部清除</button>
+                        </div>
+                        <div id="order-list" class="max-h-80 overflow-y-auto p-4 space-y-4">
+                            <!-- Selected items with qty controls -->
+                        </div>
+                        <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                            <span class="text-slate-500 font-medium">預估總計</span>
+                            <div class="text-right">
+                                <div id="total-price-jpy" class="text-xl font-bold text-indigo-600">¥0</div>
+                                <div id="total-price-converted" class="text-sm font-medium text-slate-500">約 NT$ 0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Favorites View (收藏清單) -->
+            <section id="favorites-view" class="absolute inset-0 z-10 flex flex-col bg-slate-50 hidden view-transition overflow-y-auto p-4 pb-24">
+                <div class="flex items-center justify-between mb-4 px-2">
+                    <h3 class="font-bold text-lg">我的收藏</h3>
+                    <button id="back-to-scan-btn" class="text-indigo-600 text-sm font-medium">返回掃描</button>
+                </div>
+                <div id="favorites-list" class="space-y-4"></div>
+            </section>
+
+        </main>
+
+        <!-- Help Modal (API Key 教學彈窗) -->
+        <div id="help-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 hidden">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+            <div class="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fade-in">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
+                    <h3 class="font-bold text-indigo-900">如何取得 API Key？</h3>
+                    <button id="close-help-btn" class="text-slate-400 hover:text-slate-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-sm text-slate-600 leading-relaxed">
+                    <p>為了讓 App 能翻譯菜單，您需要一個 <strong>Gemini API Key</strong>。這是免費的，只需設定一次！</p>
+                    
+                    <div class="space-y-3">
+                        <div class="flex gap-3">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">1</div>
+                            <p>登入 <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 font-bold underline">Google AI Studio</a></p>
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">2</div>
+                            <p>點擊 <strong>「Create API key」</strong> $\rightarrow$ 選擇 <strong>「Create API key in new project」</strong></p>
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">3</div>
+                            <p>複製產生的 <strong>AIza...</strong> 開頭的長字串</p>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-xs">
+                        提示：金鑰會儲存在您的手機瀏覽器中，不會上傳到伺服器，非常安全。
+                    </div>
+                </div>
+                <div class="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                    <button id="done-help-btn" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md">我知道了</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Drawer (偏好設定抽屜) -->
+        <div id="settings-drawer" class="fixed inset-0 z-50 flex flex-col bg-white drawer-closed view-transition safe-bottom">
+            <div class="p-6 flex flex-col h-full">
+                <div class="flex justify-between items-center mb-8">
+                    <h3 class="text-xl font-bold">偏好設定</h3>
+                    <button id="close-settings-btn" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-6 flex-1 overflow-y-auto">
+                    <!-- API 金鑰 -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label for="api-key-input" class="block text-sm font-medium text-slate-700">Gemini API 金鑰</label>
+                            <button id="help-api-btn" class="text-[10px] text-indigo-600 hover:underline font-medium">如何取得？</button>
+                        </div>
+                        <input type="password" id="api-key-input" placeholder="輸入您的 API 金鑰..." 
+                               class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                        <p class="text-[10px] text-slate-400 italic">金鑰將僅儲存在您的本地瀏覽器中。</p>
+                    </div>
+
+                    <!-- 模型選擇 -->
+                    <div class="space-y-2">
+                        <label for="model-select" class="block text-sm font-medium text-slate-700">AI 模型版本</label>
+                    <select id="model-select" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <option value="gemini-3.5-flash" selected>Gemini 3.5 Flash (最新/極速/推薦)</option>
+                        <option value="gemini-3.1-pro">Gemini 3.1 Pro (複雜邏輯/深度分析)</option>
+                        <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite (極低延遲)</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (穩定旗艦版)</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (效能平衡版)</option>
+                    </select>
+                    </div>
+
+                    <!-- 貨幣設定 -->
+                    <div class="space-y-2">
+                        <label for="currency-select" class="block text-sm font-medium text-slate-700">目標貨幣</label>
+                        <select id="currency-select" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <option value="TWD">新台幣 (TWD)</option>
+                            <option value="HKD">港幣 (HKD)</option>
+                            <option value="USD">美金 (USD)</option>
+                        </select>
+                    </div>
+
+                    <!-- 飲食偏好 -->
+                    <div class="space-y-2">
+                        <label for="pref-custom" class="block text-sm font-medium text-slate-700">飲食提醒 / 過敏原 (自定義)</label>
+                        <textarea id="pref-custom" rows="3" placeholder="例如：對花生嚴重過敏、不吃香菜、純素食..." 
+                                  class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"></textarea>
+                        <p class="text-[10px] text-slate-400 italic">AI 將根據此處的描述，在翻譯結果中為您標註重點。</p>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-slate-100 safe-bottom">
+                    <button id="save-settings-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100">
+                        儲存並返回
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Modal (API Key 教學彈窗) -->
+        <div id="help-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 hidden">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+            <div class="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fade-in">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
+                    <h3 class="font-bold text-indigo-900">如何取得 API Key？</h3>
+                    <button id="close-help-btn" class="text-slate-400 hover:text-slate-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-sm text-slate-600 leading-relaxed">
+                    <p>為了讓 App 能翻譯菜單，您需要一個 <strong>Gemini API Key</strong>。這是免費的，只需設定一次！</p>
+                    
+                    <div class="space-y-3">
+                        <div class="flex gap-3">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">1</div>
+                            <p>登入 <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 font-bold underline">Google AI Studio</a></p>
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">2</div>
+                            <p>點擊 <strong>「Create API key」</strong> $\rightarrow$ 選擇 <strong>「Create API key in new project」</strong></p>
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">3</div>
+                            <p>複製產生的 <strong>AIza...</strong> 開頭的長字串</p>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-xs">
+                        提示：金鑰會儲存在您的手機瀏覽器中，不會上傳到伺服器，非常安全。
+                    </div>
+                </div>
+                <div class="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                    <button id="done-help-btn" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md">我知道了</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation Bar (底部導覽列) -->
+        <nav id="bottom-nav" class="absolute bottom-0 w-full p-4 glass-morphism border-t border-slate-100 hidden z-30 flex justify-around items-center safe-bottom">
+            <button class="flex flex-col items-center gap-1 text-indigo-600">
+                <i class="fas fa-search text-xl"></i>
+                <span class="text-[10px] font-bold">辨識</span>
+            </button>
+            <button id="nav-history-btn" class="flex flex-col items-center gap-1 text-slate-400">
+                <i class="fas fa-bookmark text-xl"></i>
+                <span class="text-[10px] font-bold">收藏</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- Core Logic -->
+    <script src="logic.js"></script>
+</body>
+</html>
