@@ -75,23 +75,23 @@ const UIBridge = {
             return `
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex items-center p-4 gap-4 animate-fade-in">
                     <!-- 左側：數量與收藏星 -->
-                    <div class="flex-shrink-0 flex flex-col items-center gap-2 pr-2 border-r border-slate-50">
-                        <span class="text-xs font-bold text-slate-400">×${item.qty}</span>
-                        <button class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 hover:bg-indigo-50 text-indigo-600 transition-colors"
+                    <div class="flex-shrink-0 flex flex-col items-center gap-2">
+                        <span class="text-xs font-bold">×${item.qty}</span>
+                        <button class="w-6 h-6 flex items-center justify-center rounded-full bg-white hover:bg-slate-100 text-indigo-600"
                                 onclick="EventBus.toggleMenuFavorite(${index})">
                             <i class="${isFavorited ? 'fas fa-star text-amber-400' : 'far fa-star'}"></i>
                         </button>
                     </div>
                     <!-- 中間：名稱與價格 -->
                     <div class="flex-1 min-w-0 space-y-1">
-                        <div class="flex justify-between items-baseline gap-2">
+                        <div class="flex justify-between items-baseline">
                             <h4 class="text-lg font-bold text-slate-800 truncate">${item.nameTranslated}</h4>
-                            <span class="text-sm font-bold text-indigo-600 whitespace-nowrap">¥${(item.price * item.qty).toLocaleString()}</span>
+                            <span class="text-sm font-medium text-indigo-600">¥${item.price.toLocaleString()}</span>
                         </div>
-                        <div class="flex justify-between items-baseline gap-2">
-                            <p class="text-xs font-medium text-slate-400 truncate">${item.nameOriginal}</p>
-                            <span class="text-xs font-bold text-slate-500 whitespace-nowrap">
-                                約 ${this.currencyFormat(itemConv)}
+                        <div class="flex justify-between items-baseline">
+                            <p class="text-sm font-medium text-slate-500 truncate">${item.nameOriginal}</p>
+                            <span class="text-sm font-medium text-slate-600">
+                                ${this.currencyFormat(itemConv)}
                             </span>
                         </div>
                     </div>
