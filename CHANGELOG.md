@@ -1,5 +1,20 @@
 # 📜 MenuLens Pro 更新日誌 (CHANGELOG)
 
+## [v0.4.0] - 2026-05-22
+### 🚀 新功能
+- **點餐菜單頁面**：購物車點選完畢後，點擊「生成菜單」按鈕可切換至獨立菜單頁面。
+- **雙語雙幣別顯示**：菜單頁同時顯示日文原名、中文譯名、日幣金額（¥）及目標貨幣金額（TWD/HKD/USD）。
+- **菜單頁收藏**：每項目旁附星號按鈕，可直接加入／移除收藏，即時同步 `localStorage`。
+- **貨幣即時更新**：在菜單頁面變更貨幣設定後，儲存時自動重新計算並刷新顯示。
+
+### 🛠️ 架構擴充
+- `UIBridge` 新增 `renderOrderMenu()` 與 `currencyFormat()` 方法。
+- `EventBus` 新增 `toggleMenuFavorite()` 方法及相關事件綁定。
+- `switchView` 擴充支援 `order-menu-view`，菜單頁自動隱藏底部導覽列。
+- 順帶修復 `index.html` 中重複的 Help Modal 區塊。
+
+---
+
 ## [v0.3.0] - 2026-05-20 (成品版)
 ### 🚀 新功能
 - **視覺參考系統**：整合 `LoremFlickr` API，根據 AI 提取的 `search_term` 自動匹配食物圖片。
