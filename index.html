@@ -97,7 +97,10 @@
                             </div>
                             <div>
                                 <div class="text-xs opacity-80 font-medium">我的點餐單</div>
-                                <div class="font-bold" id="cart-summary-text">0 件 | ¥0</div>
+                                <div class="font-bold flex items-center" id="cart-summary-text">
+                                    0 件 | ¥0
+                                    <button id="generate-menu-btn" class="ml-3 px-2 py-0.5 text-[10px] bg-white/20 hover:bg-white/30 rounded border border-white/30 transition-colors">生成菜單</button>
+                                </div>
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
@@ -133,6 +136,26 @@
                     <button id="back-to-scan-btn" class="text-indigo-600 text-sm font-medium">返回掃描</button>
                 </div>
                 <div id="favorites-list" class="space-y-4"></div>
+            </section>
+
+            <!-- 5. Order Menu View (點餐菜單頁) -->
+            <section id="order-menu-view" class="absolute inset-0 z-10 flex flex-col bg-slate-50 hidden view-transition overflow-y-auto p-4 pb-40">
+                <div class="flex items-center justify-between mb-4 px-2">
+                    <h3 class="font-bold text-lg">訂單菜單</h3>
+                    <div class="flex gap-3">
+                        <button id="menu-back-scan" class="text-indigo-600 text-sm font-medium">返回掃描</button>
+                        <button id="menu-back-fav" class="text-slate-400 text-sm font-medium">查看收藏</button>
+                    </div>
+                </div>
+                <div id="menu-list" class="space-y-4"></div>
+                <div class="mt-6 p-6 bg-white rounded-3xl border border-slate-100 shadow-sm text-center">
+                    <div class="text-xs text-slate-400 font-medium mb-1">預估結帳總額</div>
+                    <div class="flex items-center justify-center gap-2">
+                        <span id="menu-total-jpy" class="text-2xl font-bold text-slate-800">¥0</span>
+                        <span class="text-slate-300">|</span>
+                        <span id="menu-total-converted" class="text-lg font-bold text-indigo-600">NT$ 0</span>
+                    </div>
+                </div>
             </section>
 
         </main>
@@ -232,44 +255,6 @@
                     <button id="save-settings-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100">
                         儲存並返回
                     </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Help Modal (API Key 教學彈窗) -->
-        <div id="help-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 hidden">
-            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
-            <div class="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fade-in">
-                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
-                    <h3 class="font-bold text-indigo-900">如何取得 API Key？</h3>
-                    <button id="close-help-btn" class="text-slate-400 hover:text-slate-600">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-sm text-slate-600 leading-relaxed">
-                    <p>為了讓 App 能翻譯菜單，您需要一個 <strong>Gemini API Key</strong>。這是免費的，只需設定一次！</p>
-                    
-                    <div class="space-y-3">
-                        <div class="flex gap-3">
-                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">1</div>
-                            <p>登入 <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 font-bold underline">Google AI Studio</a></p>
-                        </div>
-                        <div class="flex gap-3">
-                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">2</div>
-                            <p>點擊 <strong>「Create API key」</strong> $\rightarrow$ 選擇 <strong>「Create API key in new project」</strong></p>
-                        </div>
-                        <div class="flex gap-3">
-                            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">3</div>
-                            <p>複製產生的 <strong>AIza...</strong> 開頭的長字串</p>
-                        </div>
-                    </div>
-
-                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-xs">
-                        提示：金鑰會儲存在您的手機瀏覽器中，不會上傳到伺服器，非常安全。
-                    </div>
-                </div>
-                <div class="p-4 bg-slate-50 border-t border-slate-100 text-center">
-                    <button id="done-help-btn" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md">我知道了</button>
                 </div>
             </div>
         </div>

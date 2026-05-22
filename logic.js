@@ -33,7 +33,7 @@ const appState = {
 // =============================================================================
 const UIBridge = {
     switchView(viewName) {
-        const views = ['landing-view', 'scanner-view', 'results-view', 'favorites-view'];
+        const views = ['landing-view', 'scanner-view', 'results-view', 'favorites-view', 'order-menu-view'];
         views.forEach(v => {
             const el = document.getElementById(v);
             if (el) v === `${viewName}-view` ? el.classList.remove('hidden') : el.classList.add('hidden');
@@ -41,8 +41,66 @@ const UIBridge = {
         
         const nav = document.getElementById('bottom-nav');
         if (nav) {
-            viewName === 'scanner' ? nav.classList.add('hidden') : nav.classList.remove('hidden');
+            // 在掃描器或點餐菜單頁面時隱藏底部導覽列
+            ['scanner', 'order-menu'].includes(viewName) ? nav.classList.add('hidden') : nav.classList.remove('hidden');
         }
+    },
+
+    currencyFormat(value) {
+        return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: appState.settings.currency, maximumFractionDigits: 0 }).format(value);
+    },
+
+    renderOrderMenu() {
+        const listContainer = document.getElementById('menu-list');
+        const totalJPYEl = document.getElementById('menu-total-jpy');
+        const totalConvEl = document.getElementById('menu-total-converted');
+        
+        if (!listContainer) return;
+
+        if (appState.order.length === 0) {
+            listContainer.innerHTML = '<div class="text-center py-20 text-slate-400">目前沒有訂單項目</div>';
+            totalJPYEl.innerText = '¥0';
+            totalConvEl.innerText = `${appState.settings.currency} 0`;
+            return;
+        }
+
+        const totalJPY = appState.order.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        const rate = appState.exchangeRates[appState.settings.currency];
+        const totalConv = totalJPY * rate;
+
+        listContainer.innerHTML = appState.order.map((item, index) => {
+            const isFavorited = appState.favorites.some(f => f.nameOriginal === item.nameOriginal);
+            const itemConv = item.price * item.qty * rate;
+
+            return `
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex items-center p-4 gap-4 animate-fade-in">
+                    <!-- 左側：數量與收藏星 -->
+                    <div class="flex-shrink-0 flex flex-col items-center gap-2 pr-2 border-r border-slate-50">
+                        <span class="text-xs font-bold text-slate-400">×${item.qty}</span>
+                        <button class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 hover:bg-indigo-50 text-indigo-600 transition-colors"
+                                onclick="EventBus.toggleMenuFavorite(${index})">
+                            <i class="${isFavorited ? 'fas fa-star text-amber-400' : 'far fa-star'}"></i>
+                        </button>
+                    </div>
+                    <!-- 中間：名稱與價格 -->
+                    <div class="flex-1 min-w-0 space-y-1">
+                        <div class="flex justify-between items-baseline gap-2">
+                            <h4 class="text-lg font-bold text-slate-800 truncate">${item.nameTranslated}</h4>
+                            <span class="text-sm font-bold text-indigo-600 whitespace-nowrap">¥${(item.price * item.qty).toLocaleString()}</span>
+                        </div>
+                        <div class="flex justify-between items-baseline gap-2">
+                            <p class="text-xs font-medium text-slate-400 truncate">${item.nameOriginal}</p>
+                            <span class="text-xs font-bold text-slate-500 whitespace-nowrap">
+                                約 ${this.currencyFormat(itemConv)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        totalJPYEl.innerText = `¥${totalJPY.toLocaleString()}`;
+        totalConvEl.innerText = this.currencyFormat(totalConv);
     },
 
     toggleDrawer(isOpen) {
@@ -392,6 +450,35 @@ const EventBus = {
             };
             CoreLogic.saveSettings(newSettings);
             UIBridge.toggleDrawer(false);
+            
+            // 如果在點餐頁面，儲存後即時反映貨幣變更
+            if (appState.currentView === 'order-menu') {
+                UIBridge.renderOrderMenu();
+            }
+        };
+        
+        // Order Menu Specific Events
+        document.getElementById('generate-menu-btn').onclick = (e) => {
+            e.stopPropagation(); // 防止觸發購物車展開
+            if (appState.order.length === 0) {
+                UIBridge.notify('請先選擇菜單項目', 'warn');
+                return;
+            }
+            appState.currentView = 'order-menu';
+            UIBridge.switchView('order-menu');
+            UIBridge.renderOrderMenu();
+        };
+
+        document.getElementById('menu-back-scan').onclick = () => {
+            appState.currentView = 'scanner';
+            UIBridge.switchView('scanner');
+            DeviceUtils.startCamera();
+        };
+
+        document.getElementById('menu-back-fav').onclick = () => {
+            appState.currentView = 'favorites';
+            UIBridge.switchView('favorites');
+            UIBridge.renderResults(appState.favorites, 'favorites-list');
         };
         
         // Shopping Cart Events
@@ -463,6 +550,22 @@ const EventBus = {
         }
         localStorage.setItem('menulens_favorites', JSON.stringify(appState.favorites));
         UIBridge.renderResults(list, targetId);
+    },
+
+    toggleMenuFavorite(index) {
+        const item = appState.order[index];
+        if (!item) return;
+        
+        const favIndex = appState.favorites.findIndex(f => f.nameOriginal === item.nameOriginal);
+        if (favIndex > -1) {
+            appState.favorites.splice(favIndex, 1);
+        } else {
+            // 加入收藏時不保留 qty 資訊，只保留項目基本資訊
+            const { qty, ...itemInfo } = item;
+            appState.favorites.push(itemInfo);
+        }
+        localStorage.setItem('menulens_favorites', JSON.stringify(appState.favorites));
+        UIBridge.renderOrderMenu();
     }
 };
 
