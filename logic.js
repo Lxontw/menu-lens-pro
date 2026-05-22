@@ -70,26 +70,30 @@ const UIBridge = {
 
         listContainer.innerHTML = appState.order.map((item, index) => {
             const isFavorited = appState.favorites.some(f => f.nameOriginal === item.nameOriginal);
+            const rate = appState.exchangeRates[appState.settings.currency];
             const itemConv = item.price * item.qty * rate;
 
             return `
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex items-center p-4 gap-4 animate-fade-in">
                     <!-- 左側：數量與收藏星 -->
-                    <div class="flex-shrink-0 flex flex-col items-center gap-2">
-                        <span class="text-xs font-bold">×${item.qty}</span>
-                        <button class="w-6 h-6 flex items-center justify-center rounded-full bg-white hover:bg-slate-100 text-indigo-600"
+                    <div class="flex-shrink-0 flex flex-col items-center gap-2 border-r border-slate-100 pr-4">
+                        <span class="text-xs font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mb-1">×${item.qty}</span>
+                        <button class="flex flex-col items-center justify-center gap-1 group"
                                 onclick="EventBus.toggleMenuFavorite(${index})">
-                            <i class="${isFavorited ? 'fas fa-star text-amber-400' : 'far fa-star'}"></i>
+                            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-slate-50 group-hover:bg-amber-50 transition-colors">
+                                <i class="${isFavorited ? 'fas fa-star text-amber-400 text-2xl' : 'far fa-star text-slate-300 text-2xl'}"></i>
+                            </div>
+                            <span class="text-xs font-bold ${isFavorited ? 'text-amber-600' : 'text-slate-400'}">收藏</span>
                         </button>
                     </div>
                     <!-- 中間：名稱與價格 -->
                     <div class="flex-1 min-w-0 space-y-1">
                         <div class="flex justify-between items-baseline">
                             <h4 class="text-lg font-bold text-slate-800 truncate">${item.nameTranslated}</h4>
-                            <span class="text-sm font-medium text-indigo-600">¥${item.price.toLocaleString()}</span>
+                            <span class="text-sm font-medium text-indigo-600">¥${(item.price * item.qty).toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between items-baseline">
-                            <p class="text-sm font-medium text-slate-500 truncate">${item.nameOriginal}</p>
+                            <p class="text-lg font-medium text-slate-500 truncate">${item.nameOriginal}</p>
                             <span class="text-sm font-medium text-slate-600">
                                 ${this.currencyFormat(itemConv)}
                             </span>
@@ -470,9 +474,9 @@ const EventBus = {
         };
 
         document.getElementById('menu-back-scan').onclick = () => {
-            appState.currentView = 'scanner';
-            UIBridge.switchView('scanner');
-            DeviceUtils.startCamera();
+            appState.currentView = 'results';
+            UIBridge.switchView('results');
+            UIBridge.renderResults(appState.results);
         };
 
         document.getElementById('menu-back-fav').onclick = () => {
