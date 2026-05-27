@@ -1,5 +1,19 @@
 # MenuLens Pro – 購物車菜單頁功能規格書
 
+## v1.3 修正項目 (2026-05-22)
+
+### 修正：使用者自訂匯率
+
+- 刪除寫死的 `exchangeRates: { TWD: 0.215, HKD: 0.052, USD: 0.0067 }`。
+- 在設定抽屜（`#settings-drawer`）的貨幣選擇下方，新增「自訂匯率」輸入欄位：
+  - `<input id="rate-input" type="number" step="0.0001" placeholder="1 JPY = ?">`
+  - 顯示當前選擇的貨幣（如「1 JPY = ? TWD」）。
+- 匯率值儲存至 `localStorage`（key: `menulens_rate_TWD`、`menulens_rate_HKD`、`menulens_rate_USD`）。
+- 每次儲存設定時，一併儲存該貨幣的自訂匯率。
+- 若使用者未填寫匯率，預設值為 `0`（顯示為「未設定」，不進行換算）。
+- `renderOrderMenu()`、`renderResults()`、`updateOrderUI()` 等所有換算處，改用 `localStorage` 中的自訂匯率。
+- 使用者應可自由填入任何數值（不限制來源），自行從網路查詢當日匯率後手動輸入。
+
 ## v1.2 修正項目 (2026-05-22)
 
 ### 修正 1：翻譯結果快取避免重複掃描

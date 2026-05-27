@@ -1,0 +1,17 @@
+{
+  "name": "MenuLens Pro - 智慧菜單翻譯",
+  "short_name": "MenuLens",
+  "description": "即時掃描日本菜單，翻譯中文並換算匯率。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1048/1048953.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

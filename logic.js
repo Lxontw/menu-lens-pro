@@ -23,10 +23,21 @@ const appState = {
     isProcessing: false,
     stream: null,
     results: JSON.parse(localStorage.getItem('menulens_last_results') || '[]'),
-    order: [], // Currently selected items for ordering
-    favorites: JSON.parse(localStorage.getItem('menulens_favorites') || '[]'),
-    exchangeRates: { TWD: 0.215, HKD: 0.052, USD: 0.0067 }
+    order: JSON.parse(localStorage.getItem('menulens_current_order') || '[]'), // 持久化購物車
+    favorites: JSON.parse(localStorage.getItem('menulens_favorites') || '[]')
 };
+
+/**
+ * 取得指定貨幣的自訂匯率 (v2.0)
+ */
+function getExchangeRate(currency) {
+    const rate = localStorage.getItem(`menulens_rate_${currency}`);
+    if (rate) return parseFloat(rate);
+    
+    // 防禦性底限匯率 (Fallback Rates) - v2.1
+    const fallbacks = { TWD: 0.20, HKD: 0.05, USD: 0.006 };
+    return fallbacks[currency] || 0;
+}
 
 // =============================================================================
 // 2. UI BRIDGE (Standardized DOM Interface)
@@ -46,8 +57,9 @@ const UIBridge = {
         }
     },
 
-    currencyFormat(value) {
-        return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: appState.settings.currency, maximumFractionDigits: 0 }).format(value);
+    currencyFormat(value, rate) {
+        if (!rate || rate === 0) return '未設定';
+        return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: appState.settings.currency, maximumFractionDigits: 0 }).format(value * rate);
     },
 
     renderOrderMenu() {
@@ -65,13 +77,10 @@ const UIBridge = {
         }
 
         const totalJPY = appState.order.reduce((sum, item) => sum + (item.price * item.qty), 0);
-        const rate = appState.exchangeRates[appState.settings.currency];
-        const totalConv = totalJPY * rate;
+        const currentRate = getExchangeRate(appState.settings.currency);
 
         listContainer.innerHTML = appState.order.map((item, index) => {
             const isFavorited = appState.favorites.some(f => f.nameOriginal === item.nameOriginal);
-            const rate = appState.exchangeRates[appState.settings.currency];
-            const itemConv = item.price * item.qty * rate;
 
             // 渲染飲食標記與過敏警告 (Fix 5)
             const tagsHtml = item.dietary_tags && item.dietary_tags.length > 0 
@@ -101,9 +110,9 @@ const UIBridge = {
                             <span class="text-sm font-medium text-indigo-600">¥${(item.price * item.qty).toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between items-baseline">
-                            <p class="text-base font-medium text-slate-500 truncate">${item.nameOriginal}</p>
+                            <p class="text-lg font-medium text-slate-500 truncate">${item.nameOriginal}</p>
                             <span class="text-sm font-medium text-slate-600">
-                                ${this.currencyFormat(itemConv)}
+                                ${this.currencyFormat(item.price * item.qty, currentRate)}
                             </span>
                         </div>
                         <div class="flex flex-wrap gap-1 mt-1">
@@ -116,7 +125,7 @@ const UIBridge = {
         }).join('');
 
         totalJPYEl.innerText = `¥${totalJPY.toLocaleString()}`;
-        totalConvEl.innerText = this.currencyFormat(totalConv);
+        totalConvEl.innerText = this.currencyFormat(totalJPY, currentRate);
     },
 
     toggleDrawer(isOpen) {
@@ -207,7 +216,8 @@ const UIBridge = {
 
         const totalItems = appState.order.reduce((sum, item) => sum + item.qty, 0);
         const totalJPYValue = appState.order.reduce((sum, item) => sum + (item.price * item.qty), 0);
-        const totalConvValue = (totalJPYValue * appState.exchangeRates[appState.settings.currency]).toFixed(0);
+        const currentRate = getExchangeRate(appState.settings.currency);
+        const totalConvText = this.currencyFormat(totalJPYValue, currentRate);
 
         // 1. 處理觸發條顯示
         if (totalItems === 0) {
@@ -218,11 +228,11 @@ const UIBridge = {
         }
         panel.classList.remove('translate-y-full');
         summaryText.innerText = `${totalItems} 件 | ¥${totalJPYValue.toLocaleString()}`;
-        totalConvertedTrigger.innerText = `${appState.settings.currency} ${parseInt(totalConvValue).toLocaleString()}`;
+        totalConvertedTrigger.innerText = totalConvText;
 
         // 2. 渲染詳細列表
         listContainer.innerHTML = appState.order.map((item, index) => {
-            const itemConv = (item.price * appState.exchangeRates[appState.settings.currency]).toFixed(0);
+            const itemConvText = this.currencyFormat(item.price * item.qty, currentRate);
             return `
                 <div class="flex justify-between items-center py-3 border-b border-slate-50 last:border-0">
                     <div class="flex-1 min-w-0 pr-4">
@@ -232,7 +242,7 @@ const UIBridge = {
                         </div>
                         <div class="flex justify-between items-center">
                             <div class="text-xs text-slate-400 truncate">${item.nameOriginal}</div>
-                            <div class="text-xs font-medium text-slate-500">約 ${appState.settings.currency} ${itemConv}</div>
+                            <div class="text-xs font-medium text-slate-500">約 ${itemConvText}</div>
                         </div>
                     </div>
                     <div class="flex items-center gap-3 bg-slate-100 rounded-full px-2 py-1">
@@ -249,7 +259,7 @@ const UIBridge = {
         }).join('');
 
         totalJPY.innerText = `¥${totalJPYValue.toLocaleString()}`;
-        totalConv.innerText = `約 ${appState.settings.currency} ${parseInt(totalConvValue).toLocaleString()}`;
+        totalConv.innerText = `約 ${totalConvText}`;
     },
 
     toggleCartExpanded() {
@@ -267,10 +277,15 @@ const UIBridge = {
     },
 
     updateSettingsUI() {
+        const currency = appState.settings.currency;
         document.getElementById('api-key-input').value = appState.settings.apiKey;
         document.getElementById('model-select').value = appState.settings.model;
-        document.getElementById('currency-select').value = appState.settings.currency;
+        document.getElementById('currency-select').value = currency;
         document.getElementById('pref-custom').value = appState.settings.customPrefs;
+        
+        // v2.0: 更新匯率 Label 與 Input
+        document.getElementById('rate-label').innerText = `自訂匯率 (1 JPY = ? ${currency})`;
+        document.getElementById('rate-input').value = getExchangeRate(currency) || '';
     },
 
     notify(message, type = 'info') {
@@ -331,12 +346,38 @@ const CoreLogic = {
         return JSON.parse(match ? match[0] : text);
     },
 
-    saveSettings(newSettings) {
+    /**
+     * 從 Open Exchange Rates API 獲取最新匯率 (v2.1)
+     * 改用 open.er-api.com，支援 TWD 且免 Key
+     */
+    async fetchLatestRate(base, target) {
+        try {
+            const url = `https://open.er-api.com/v6/latest/${base}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('匯率伺服器暫時無回應');
+            const data = await res.json();
+            
+            if (data.result === 'success' && data.rates[target]) {
+                return data.rates[target];
+            }
+            throw new Error(`不支援的貨幣: ${target}`);
+        } catch (err) {
+            console.error('匯率抓取失敗:', err);
+            throw new Error(`暫時無法獲取即時匯率 (${err.message})，已為您載入參考數值。`);
+        }
+    },
+
+    saveSettings(newSettings, currentRate) {
         Object.assign(appState.settings, newSettings);
         localStorage.setItem('menulens_api_key', newSettings.apiKey);
         localStorage.setItem('menulens_model', newSettings.model);
         localStorage.setItem('menulens_currency', newSettings.currency);
         localStorage.setItem('menulens_pref_custom', newSettings.customPrefs);
+        
+        // v2.0: 儲存對應貨幣的匯率
+        if (currentRate !== undefined) {
+            localStorage.setItem(`menulens_rate_${newSettings.currency}`, currentRate);
+        }
     }
 };
 
@@ -479,7 +520,20 @@ const EventBus = {
             }
         };
         document.getElementById('rescan-btn').onclick = () => {
-            // Fix 1: 重新掃描時清除舊結果
+            let shouldClearOrder = false;
+            if (appState.order.length > 0) {
+                // 防禦性設計：詢問使用者是「續拍」還是「換店」
+                if (confirm('您目前有點餐紀錄。這是要「掃描新餐廳」嗎？\n(選「確定」將清空點餐單；選「取消」則保留內容繼續續拍下一頁)')) {
+                    shouldClearOrder = true;
+                }
+            }
+
+            if (shouldClearOrder) {
+                appState.order = [];
+                localStorage.removeItem('menulens_current_order');
+                UIBridge.updateOrderUI();
+            }
+
             appState.results = [];
             localStorage.removeItem('menulens_last_results');
             
@@ -487,6 +541,67 @@ const EventBus = {
             UIBridge.switchView('scanner');
             DeviceUtils.startCamera();
         };
+
+        // v2.1: 完成點餐並清空 (新餐廳準備)
+        document.getElementById('finish-order-btn').onclick = () => {
+            if (confirm('確定已完成點餐並清空紀錄嗎？')) {
+                appState.order = [];
+                appState.results = [];
+                localStorage.removeItem('menulens_current_order');
+                localStorage.removeItem('menulens_last_results');
+                
+                UIBridge.updateOrderUI();
+                UIBridge.renderResults([]);
+                
+                appState.currentView = 'landing';
+                UIBridge.switchView('landing');
+            }
+        };
+
+        // v2.0: 貨幣切換事件 - 自動抓取最新匯率
+        document.getElementById('currency-select').onchange = async (e) => {
+            const currency = e.target.value;
+            document.getElementById('rate-label').innerText = `自訂匯率 (1 JPY = ? ${currency})`;
+            
+            // 自動嘗試抓取
+            const btn = document.getElementById('fetch-rate-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner animate-spin mr-1"></i>抓取中';
+            
+            try {
+                const rate = await CoreLogic.fetchLatestRate('JPY', currency);
+                document.getElementById('rate-input').value = rate;
+                // 自動儲存至 localStorage 以便即時生效
+                localStorage.setItem(`menulens_rate_${currency}`, rate);
+            } catch (err) {
+                console.warn('自動抓取失敗，載入本地快取');
+                document.getElementById('rate-input').value = getExchangeRate(currency) || '';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>自動獲取';
+            }
+        };
+
+        // v2.0: 自動獲取匯率事件
+        document.getElementById('fetch-rate-btn').onclick = async () => {
+            const currency = document.getElementById('currency-select').value;
+            const btn = document.getElementById('fetch-rate-btn');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner animate-spin mr-1"></i>抓取中';
+            
+            try {
+                const rate = await CoreLogic.fetchLatestRate('JPY', currency);
+                document.getElementById('rate-input').value = rate;
+                UIBridge.notify(`已獲取最新匯率：1 JPY = ${rate} ${currency}`, 'info');
+            } catch (err) {
+                UIBridge.notify(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>自動獲取';
+            }
+        };
+
         document.getElementById('save-settings-btn').onclick = () => {
             const newSettings = {
                 apiKey: document.getElementById('api-key-input').value,
@@ -494,10 +609,12 @@ const EventBus = {
                 currency: document.getElementById('currency-select').value,
                 customPrefs: document.getElementById('pref-custom').value
             };
-            CoreLogic.saveSettings(newSettings);
+            const currentRate = document.getElementById('rate-input').value;
+            CoreLogic.saveSettings(newSettings, currentRate);
             UIBridge.toggleDrawer(false);
             
-            // 如果在點餐頁面，儲存後即時反映貨幣變更
+            // 儲存後即時反映匯率變更
+            UIBridge.updateOrderUI();
             if (appState.currentView === 'order-menu') {
                 UIBridge.renderOrderMenu();
             }
@@ -533,6 +650,7 @@ const EventBus = {
         };
         document.getElementById('clear-order-btn').onclick = () => {
             appState.order = [];
+            localStorage.removeItem('menulens_current_order');
             UIBridge.updateOrderUI();
             UIBridge.renderResults(appState.results);
         };
@@ -566,6 +684,7 @@ const EventBus = {
             appState.order.push({ ...item, qty: 1 });
         }
         
+        localStorage.setItem('menulens_current_order', JSON.stringify(appState.order));
         UIBridge.renderResults(appState.results);
         UIBridge.updateOrderUI();
     },
@@ -579,6 +698,7 @@ const EventBus = {
             appState.order.splice(index, 1);
         }
         
+        localStorage.setItem('menulens_current_order', JSON.stringify(appState.order));
         UIBridge.renderResults(appState.results);
         UIBridge.updateOrderUI();
     },
@@ -616,8 +736,21 @@ const EventBus = {
 };
 
 // Start Application
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     UIBridge.updateSettingsUI();
+    
+    // v2.0: 啟動時自動檢查當前貨幣匯率，若為 0 則嘗試自動抓取
+    const currentCurrency = appState.settings.currency;
+    if (getExchangeRate(currentCurrency) === 0) {
+        console.log(`正在為新用戶自動初始化 ${currentCurrency} 匯率...`);
+        try {
+            const rate = await CoreLogic.fetchLatestRate('JPY', currentCurrency);
+            localStorage.setItem(`menulens_rate_${currentCurrency}`, rate);
+            UIBridge.updateSettingsUI(); // 更新介面顯示
+        } catch (err) {
+            console.warn('啟動時自動抓取匯率失敗');
+        }
+    }
     
     // Fix 1: 若有上次結果，直接顯示
     if (appState.results.length > 0) {
