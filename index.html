@@ -32,8 +32,13 @@
         <!-- Main Content Area -->
         <main class="flex-1 relative">
             
+            <!-- 0. Home View (New) -->
+            <section id="home-view" class="absolute inset-0 z-10 flex flex-col bg-slate-50 p-4 pb-32 overflow-y-auto">
+                <!-- Content will be rendered by JS -->
+            </section>
+
             <!-- 1. Landing Page View (歡迎介面) -->
-            <section id="landing-view" class="absolute inset-0 z-30 flex flex-col items-center justify-center p-8 bg-white view-transition">
+            <section id="landing-view" class="absolute inset-0 z-30 flex flex-col items-center justify-center p-8 bg-white view-transition hidden">
                 <div class="mb-10 text-center">
                     <div class="w-24 h-24 bg-indigo-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                         <i class="fas fa-camera-retro text-4xl text-indigo-600"></i>
@@ -243,6 +248,7 @@
                     </div>
                 </div>
                 <div id="accounts-list" class="space-y-4"></div>
+                <div id="account-detail-container" class="mt-6"></div>
             </section>
 
             <!-- 7. Life Tools View (生活工具) -->
@@ -287,6 +293,46 @@
                 </div>
             </section>
 
+            <!-- 9. Order Preview View (訂單預覽) -->
+            <section id="order-preview-view" class="absolute inset-0 z-50 flex flex-col bg-slate-900 text-white hidden view-transition overflow-y-auto p-8 safe-bottom">
+                <div class="text-center mb-8">
+                    <h3 class="text-3xl font-bold">給服務人員看的訂單</h3>
+                    <p class="text-white/60 mt-2">請將此畫面出示給店員即可</p>
+                </div>
+                <div id="staff-order-list" class="flex-1 space-y-4 bg-white/10 p-6 rounded-3xl">
+                    <!-- JS-rendered content -->
+                </div>
+                <div class="mt-8 grid grid-cols-2 gap-4">
+                    <button id="order-preview-back-btn" class="w-full py-4 bg-white/20 rounded-2xl font-bold">返回修改</button>
+                    <button id="order-preview-split-btn" class="w-full py-4 bg-indigo-500 rounded-2xl font-bold">下一步：分帳</button>
+                </div>
+            </section>
+
+            <!-- 10. Split View (分帳頁) -->
+            <section id="split-view" class="absolute inset-0 z-50 flex flex-col bg-slate-50 hidden view-transition overflow-y-auto p-4 pb-24">
+                <div class="flex items-center gap-3 mb-6 px-2">
+                    <button id="split-back-btn" class="text-slate-400 text-lg"><i class="fas fa-arrow-left"></i></button>
+                    <h3 class="font-bold text-lg">分帳計算</h3>
+                </div>
+                <div id="split-view-content" class="space-y-6">
+                    <!-- JS-rendered content -->
+                </div>
+                 <div class="mt-8 px-2">
+                    <button id="split-finish-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg active:scale-95 transition-transform">
+                        完成並儲存至歷史紀錄
+                    </button>
+                </div>
+            </section>
+
+            <!-- 11. History View (歷史紀錄) -->
+            <section id="history-view" class="absolute inset-0 z-10 flex flex-col bg-slate-50 hidden view-transition overflow-y-auto p-4 pb-32">
+                 <div class="flex items-center justify-between mb-6 px-2">
+                    <h3 class="font-bold text-lg">歷史訂單</h3>
+                </div>
+                <div id="history-list-container" class="space-y-4"></div>
+            </section>
+
+
         </main>
 
         <!-- Help Modal (API Key 教學彈窗) -->
@@ -328,113 +374,30 @@
         </div>
 
         <!-- Settings Drawer (偏好設定抽屜) -->
-        <div id="settings-drawer" class="fixed inset-0 z-50 flex flex-col bg-white drawer-closed view-transition safe-bottom">
-            <div class="p-6 flex flex-col h-full">
-                <div class="flex justify-between items-center mb-8">
-                    <h3 class="text-xl font-bold">偏好設定</h3>
-                    <button id="close-settings-btn" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <div class="space-y-6 flex-1 overflow-y-auto">
-                    <!-- Onboarding Tip -->
-                    <div id="api-onboarding-tip" class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex gap-3 hidden">
-                        <i class="fas fa-magic text-indigo-600 mt-1"></i>
-                        <div class="text-xs text-indigo-900 leading-relaxed">
-                            <span class="font-bold">最後一小步！</span><br>
-                            貼上您的 Gemini API 金鑰即可開始辨識。這讓您能享有完全私密且免費的 AI 翻譯服務。
-                        </div>
-                    </div>
-
-                    <!-- API 金鑰 -->
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <label for="api-key-input" class="block text-sm font-medium text-slate-700">Gemini API 金鑰</label>
-                            <button id="help-api-btn-trigger" class="text-[10px] text-indigo-600 hover:underline font-medium">如何取得？</button>
-                        </div>
-                        <input type="password" id="api-key-input" placeholder="輸入您的 API 金鑰..." 
-                               class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
-                        <p class="text-[10px] text-slate-400 italic">金鑰將僅儲存在您的本地瀏覽器中。</p>
-                    </div>
-
-                    <!-- 模型選擇 -->
-                    <div class="space-y-2">
-                        <label for="model-select" class="block text-sm font-medium text-slate-700">AI 模型版本</label>
-                    <select id="model-select" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <option value="gemini-3.5-flash" selected>Gemini 3.5 Flash (推薦)</option>
-                        <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite</option>
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
-                        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                    </select>
-                    </div>
-
-                    <!-- 貨幣設定 -->
-                    <div class="space-y-2">
-                        <label for="currency-select" class="block text-sm font-medium text-slate-700">目標貨幣</label>
-                        <select id="currency-select" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
-                            <option value="TWD">新台幣 (TWD)</option>
-                            <option value="HKD">港幣 (HKD)</option>
-                            <option value="USD">美金 (USD)</option>
-                        </select>
-                    </div>
-
-                    <!-- 自訂匯率 -->
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <label id="rate-label" for="rate-input" class="block text-sm font-medium text-slate-700">自訂匯率 (1 JPY = ? TWD)</label>
-                            <button id="fetch-rate-btn" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors font-bold">
-                                <i class="fas fa-sync-alt mr-1"></i>自動獲取
-                            </button>
-                        </div>
-                        <input type="number" id="rate-input" step="0.0001" placeholder="請輸入匯率..." 
-                               class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
-                        <p class="text-[10px] text-slate-400 italic">您可點擊「自動獲取」抓取最新匯率，或自行手動微調。若為 0 將不進行換算。</p>
-                    </div>
-
-                    <!-- 飲食偏好 -->
-                    <div class="space-y-2">
-                        <label for="pref-custom" class="block text-sm font-medium text-slate-700">飲食提醒 / 過敏原 (自定義)</label>
-                        <textarea id="pref-custom" rows="3" placeholder="例如：對花生嚴重過敏、不吃香菜、純素食..." 
-                                  class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"></textarea>
-                        <p class="text-[10px] text-slate-400 italic">AI 將根據此處的描述，在翻譯結果中為您標註重點。</p>
-                    </div>
-
-                    <!-- 資料管理 -->
-                    <div class="pt-4 border-t border-slate-100">
-                        <button id="export-data-btn" class="w-full py-3 bg-slate-50 text-slate-600 rounded-xl text-sm font-bold border border-slate-200 hover:bg-slate-100 transition-colors">
-                            <i class="fas fa-file-export mr-2"></i>匯出備份資料 (JSON)
-                        </button>
-                    </div>
-                </div>
-
-                <div class="mt-8 pt-6 border-t border-slate-100 safe-bottom">
-                    <button id="save-settings-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100">
-                        儲存並返回
-                    </button>
-                </div>
-            </div>
+        <div id="settings-drawer" class="fixed inset-0 z-50 flex flex-col bg-white drawer-closed opacity-0 pointer-events-none view-transition safe-bottom">
+            <!-- Content will be rendered by JS -->
         </div>
 
         <!-- Bottom Navigation Bar (底部導覽列) -->
-        <nav id="bottom-nav" class="absolute bottom-0 w-full p-4 glass-morphism border-t border-slate-100 hidden z-30 flex justify-around items-center safe-bottom">
-            <button id="nav-scan-btn" class="flex flex-col items-center gap-1 text-indigo-600">
-                <i class="fas fa-search text-xl"></i>
-                <span class="text-[10px] font-bold">辨識</span>
-            </button>
-            <button id="nav-history-btn" class="flex flex-col items-center gap-1 text-slate-400">
-                <i class="fas fa-bookmark text-xl"></i>
-                <span class="text-[10px] font-bold">收藏</span>
-            </button>
-            <button id="nav-finance-btn" class="flex flex-col items-center gap-1 text-slate-400">
-                <i class="fas fa-wallet text-xl"></i>
-                <span class="text-[10px] font-bold">帳本</span>
-            </button>
-            <button id="nav-life-btn" class="flex flex-col items-center gap-1 text-slate-400">
-                <i class="fas fa-rocket text-xl"></i>
-                <span class="text-[10px] font-bold">工具</span>
-            </button>
+        <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 z-30">
+             <div class="max-w-md mx-auto p-4 glass-morphism border-t border-slate-100 flex justify-around items-center safe-bottom">
+                <button id="nav-home-btn" class="flex flex-col items-center gap-1 text-indigo-600">
+                    <i class="fas fa-home text-xl"></i>
+                    <span class="text-[10px] font-bold">首頁</span>
+                </button>
+                <button id="nav-history-btn" class="flex flex-col items-center gap-1 text-slate-400">
+                    <i class="fas fa-history text-xl"></i>
+                    <span class="text-[10px] font-bold">歷史</span>
+                </button>
+                <button id="nav-finance-btn" class="flex flex-col items-center gap-1 text-slate-400">
+                    <i class="fas fa-wallet text-xl"></i>
+                    <span class="text-[10px] font-bold">帳本</span>
+                </button>
+                <button id="nav-life-btn" class="flex flex-col items-center gap-1 text-slate-400">
+                    <i class="fas fa-rocket text-xl"></i>
+                    <span class="text-[10px] font-bold">工具</span>
+                </button>
+            </div>
         </nav>
 
     </div>
@@ -442,4 +405,3 @@
     <!-- Core Logic -->
     <script type="module" src="./src/main.js"></script>
 </body>
-</html>

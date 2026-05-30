@@ -6,7 +6,7 @@ import { Storage } from '../storage/local-storage.js';
 export const appState = {
     settings: {
         apiKey: localStorage.getItem('menulens_api_key') || '',
-        model: localStorage.getItem('menulens_model') || 'gemini-3.5-flash',
+        model: localStorage.getItem('menulens_model') || 'gemini-2.5-flash',
         currency: localStorage.getItem('menulens_currency') || 'TWD',
         prefCustom: localStorage.getItem('menulens_pref_custom') || '',
         customRate: 0 // Will be populated by UIBridge or RateService when needed
@@ -19,9 +19,13 @@ export const appState = {
     results: Storage.getJSON('menulens_last_results'),
     order: Storage.getJSON('menulens_current_order'),
     favorites: Storage.getJSON('menulens_favorites'),
+    orderHistory: Storage.getJSON('menulens_order_history'),
+    currentBill: Storage.getJSON('menulens_current_bill', null),
+    currentOrderPreview: null,
     financeModule: {
         accounts: Storage.getJSON('menulens_accounts')
     },
+    currentAccountId: localStorage.getItem('menulens_current_account_id') || '',
     lifeToolsModule: {
         tools: [
             {id:'currency', name:'匯率計算器', icon:'fa-exchange-alt', color:'text-indigo-600'},

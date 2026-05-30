@@ -5,501 +5,401 @@ import { ReceiptService } from '../core/receipt-service.js';
 import { FinanceService } from '../core/finance-service.js';
 import { LifeToolsService } from '../core/life-tools-service.js';
 import { RateService } from '../core/rate-service.js';
+import { OrderService } from '../core/order-service.js';
+import { SplitService } from '../core/split-service.js';
 import { DeviceUtils } from '../device/camera.js';
 import { UIBridge } from '../ui/ui-bridge.js';
+import { views } from '../ui/views.js';
 
 /**
  * Event Bus - Orchestrates interactions between UI, Core Services, and State
  */
 export const EventBus = {
+    _handlers: {},
+
     init() {
-        this.bindCoreEvents();
-        this.bindNavEvents();
-        this.bindSettingsEvents();
-        this.bindMenuEvents();
-        this.bindReceiptEvents();
-        this.bindFinanceEvents();
-        this.bindLifeToolsEvents();
+        this.registerEventHandlers();
+        this.bindDOMEvents();
         
         // Global reference for inline HTML onclicks
         window.EventBus = this;
         window.UIBridge = UIBridge;
     },
 
-    bindCoreEvents() {
-        const startScan = (mode = 'menu') => {
-            if (!appState.settings.apiKey) {
-                UIBridge.notify('請先設定 API 金鑰', 'warn');
-                UIBridge.toggleDrawer(true);
-                return;
-            }
-            appState.scannerMode = mode;
-            appState.currentView = 'scanner';
-            UIBridge.switchView('scanner');
-            DeviceUtils.startCamera();
-        };
-
-        document.getElementById('start-btn').onclick = () => startScan('menu');
-        
-        document.getElementById('upload-landing-btn').onclick = () => {
-            appState.scannerMode = 'menu';
-            document.getElementById('file-input').click();
-        };
-
-        document.getElementById('scan-btn').onclick = async () => {
-            if (appState.scannerStatus === 'analyzing') return;
-            const base64 = DeviceUtils.captureFrame();
-            if (base64) {
-                appState.lastScanSource = 'camera';
-                this.handleScan(base64);
-            }
-        };
-
-        document.getElementById('upload-btn').onclick = () => {
-            if (appState.scannerStatus === 'analyzing') return;
-            document.getElementById('file-input').click();
-        };
-        
-        document.getElementById('error-upload-btn').onclick = () => {
-            document.getElementById('file-input').click();
-        };
-
-        document.getElementById('file-input').onchange = async (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                appState.lastScanSource = 'upload';
-                const base64 = await DeviceUtils.processImageFile(file);
-                this.handleScan(base64);
-            }
-        };
-
-        document.getElementById('scanner-help-btn').onclick = () => {
-            UIBridge.toggleHelpModal(true);
-        };
-
-        document.getElementById('scanner-close-btn').onclick = () => {
-            DeviceUtils.stopCamera();
-            if (appState.scannerMode === 'receipt') {
-                appState.scannerMode = 'menu';
-                appState.currentView = 'finance';
-                UIBridge.switchView('finance');
-            } else {
-                if (appState.results && appState.results.length > 0) {
-                    appState.currentView = 'results';
-                    UIBridge.switchView('results');
-                } else {
-                    appState.currentView = 'landing';
-                    UIBridge.switchView('landing');
-                }
-            }
-        };
-        
-        this.bindResultsEvents();
+    dispatch(eventName, payload) {
+        if (this._handlers[eventName]) {
+            this._handlers[eventName](payload);
+        } else {
+            console.warn(`No handler registered for event: ${eventName}`);
+        }
     },
 
-    bindResultsEvents() {
-        document.getElementById('append-scan-btn').onclick = () => {
-            appState.scannerMode = 'menu';
-            appState.currentView = 'scanner';
-            UIBridge.switchView('scanner');
-            DeviceUtils.startCamera();
-        };
-
-        document.getElementById('new-scan-btn').onclick = () => {
-            if (confirm('確定要開始新的掃描任務？這將清空目前的辨識結果。')) {
+    registerEventHandlers() {
+        this._handlers = {
+            // --- App Lifecycle & Navigation ---
+            'navigate': (viewName) => {
+                const targetView = viewName === 'split-view' ? 'split' : viewName;
+                appState.currentView = targetView;
+                UIBridge.switchView(targetView);
+                if (targetView === 'history') UIBridge.renderHistoryList();
+                if (targetView === 'finance') UIBridge.renderAccounts();
+                if (targetView === 'life-tools') UIBridge.renderLifeTools();
+                if (targetView === 'home') UIBridge.renderHomeDashboard();
+                if (targetView === 'order-preview') UIBridge.renderOrderPreview(appState.currentOrderPreview);
+                if (targetView === 'split') UIBridge.renderSplitView();
+            },
+            'toggle-settings': () => UIBridge.toggleDrawer(true),
+            'close-settings': () => UIBridge.toggleDrawer(false),
+            'toggle-help': () => UIBridge.toggleHelpModal(true),
+            'close-help': () => UIBridge.toggleHelpModal(false),
+            'navigate-back': () => {
+                // A simple back implementation. For now, just goes to history list.
+                // A more robust solution would track view history.
+                this.dispatch('navigate', 'history');
+            },
+            'navigate-home': () => {
+                this.dispatch('navigate', 'home');
+            },
+            'start-scan': (payload) => {
+                if (!appState.settings.apiKey) {
+                    UIBridge.notify('請先設定 API 金鑰', 'warn');
+                    return this.dispatch('toggle-settings');
+                }
+                appState.scannerMode = payload.mode || 'menu';
+                this.dispatch('navigate', 'scanner');
+                DeviceUtils.startCamera();
+            },
+            'upload-file-intent': () => {
+                if (appState.scannerStatus === 'analyzing') return;
+                document.getElementById('file-input').click();
+            },
+            'scan-capture': async () => {
+                if (appState.scannerStatus === 'analyzing') return;
+                const base64 = DeviceUtils.captureFrame();
+                if (base64) {
+                    appState.lastScanSource = 'camera';
+                    this.handleScan(base64);
+                }
+            },
+            'close-scanner': () => {
+                DeviceUtils.stopCamera();
+                const targetView = (appState.results && appState.results.length > 0) ? 'results' : 'home';
+                this.dispatch('navigate', targetView);
+            },
+            'process-file-upload': async (file) => {
+                 if (file) {
+                    appState.lastScanSource = 'upload';
+                    const base64 = await DeviceUtils.processImageFile(file);
+                    this.handleScan(base64);
+                }
+            },
+            'start-new-scan-session': () => {
                 appState.results = [];
                 Storage.saveLastResults();
-                appState.scannerMode = 'menu';
-                appState.currentView = 'scanner';
-                UIBridge.switchView('scanner');
-                DeviceUtils.startCamera();
-            }
+                UIBridge.notify('已清空目前辨識結果，開始新的掃描流程', 'info');
+                this.dispatch('start-scan', { mode: 'menu' });
+            },
+
+            // --- Order & Cart ---
+            'generate-order-preview': () => {
+                if (appState.order.length === 0) {
+                    return UIBridge.notify('請先選擇菜單項目', 'warn');
+                }
+                const orderPreviewData = OrderService.createOrderFromCart();
+                appState.currentOrderPreview = orderPreviewData;
+                UIBridge.renderOrderPreview(appState.currentOrderPreview);
+                this.dispatch('navigate', 'order-preview');
+             },
+            'go-to-split': () => {
+                if (!appState.currentOrderPreview) return;
+                SplitService.createSplitFromOrder(appState.currentOrderPreview);
+                this.dispatch('navigate', 'split');
+            },
+            'finalize-split': () => {
+                if (!appState.currentBill) return;
+                
+                const orderToSave = appState.currentOrderPreview;
+                if(orderToSave){
+                    orderToSave.splitDetails = appState.currentBill;
+                    OrderService.saveOrderToHistory(orderToSave);
+                }
+
+                SplitService.finalizeSplit(); // Clears currentBill
+                OrderService.clearCurrentOrder();
+                UIBridge.updateOrderUI();
+                this.dispatch('navigate', 'history');
+                UIBridge.notify('分帳完成並已儲存至歷史紀錄', 'success');
+            },
+            'clear-order': () => {
+                OrderService.clearCurrentOrder();
+                UIBridge.updateOrderUI();
+            },
+            'show-order-summary': () => {
+                const content = document.getElementById('cart-content');
+                const chevron = document.getElementById('cart-chevron');
+                const isExpanded = content.style.maxHeight && content.style.maxHeight !== '0px';
+
+                if (isExpanded) {
+                    content.style.maxHeight = null;
+                    chevron.classList.replace('fa-chevron-down', 'fa-chevron-up');
+                } else {
+                    content.style.maxHeight = '500px';
+                    chevron.classList.replace('fa-chevron-up', 'fa-chevron-down');
+                }
+            },
+
+            // --- Settings ---
+            'save-settings': () => {
+                appState.settings.apiKey = document.getElementById('api-key-input').value;
+                appState.settings.model = document.getElementById('model-select').value;
+                appState.settings.currency = document.getElementById('currency-select').value;
+                appState.settings.prefCustom = document.getElementById('pref-custom').value;
+                appState.settings.customRate = parseFloat(document.getElementById('rate-input').value) || 0;
+
+                Storage.saveSettings();
+                UIBridge.notify('設定已儲存', 'success');
+                UIBridge.toggleDrawer(false);
+            },
+            'fetch-live-rate': async () => {
+                UIBridge.notify('正在獲取最新匯率...', 'info');
+                const currentCurrency = document.getElementById('currency-select').value;
+                const rate = await RateService.fetchLiveRate(currentCurrency);
+                if (rate) {
+                    document.getElementById('rate-input').value = rate.toFixed(4);
+                    UIBridge.notify('匯率已更新', 'success');
+                } else {
+                    UIBridge.notify('匯率獲取失敗', 'error');
+                }
+            },
+            'export-data': () => {
+                const data = Storage.exportBackup();
+                const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `menulens_backup_${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                UIBridge.notify('已匯出備份檔', 'success');
+            },
+            'trigger-import-data': () => {
+                document.getElementById('import-data-input')?.click();
+            },
+            'import-data': async (file) => {
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const parsed = JSON.parse(text);
+                    Storage.importBackup(parsed);
+                    UIBridge.notify('已匯入備份資料，請重新整理畫面', 'success');
+                    window.location.reload();
+                } catch (error) {
+                    console.error(error);
+                    UIBridge.notify('匯入失敗，請確認 JSON 格式', 'error');
+                }
+            },
+            'share-data': async () => {
+                const backup = Storage.exportBackup();
+                const text = JSON.stringify(backup, null, 2);
+                try {
+                    if (navigator.share) {
+                        await navigator.share({ title: 'MenuLens Pro 備份', text });
+                        UIBridge.notify('已開啟分享面板', 'success');
+                    } else if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(text);
+                        UIBridge.notify('備份內容已複製到剪貼簿', 'success');
+                    } else {
+                        UIBridge.notify('此裝置不支援分享或複製', 'warn');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    UIBridge.notify('分享失敗', 'error');
+                }
+            },
+        // --- History / Split / Receipt / Finance ---
+            'view-history-item': (payload) => {
+                const order = appState.orderHistory.find(o => o.id === payload.id);
+                if (!order) return;
+                
+                const container = document.getElementById('history-view');
+                if (container) {
+                    container.innerHTML = views.renderHistoryDetailView(order);
+                }
+                // We just need to make sure the view is visible.
+                UIBridge.switchView('history');
+            },
+            'reuse-order': (payload) => {
+                if (OrderService.reuseOrder(payload.id)) {
+                    UIBridge.notify('已將歷史訂單複製回點餐單', 'success');
+                    this.dispatch('navigate', 'home');
+                    UIBridge.updateOrderUI();
+                } else {
+                    UIBridge.notify('找不到要重複使用的訂單', 'error');
+                }
+            },
+            'reuse-history-order': () => {
+                if (!appState.currentOrderPreview) return;
+                if (OrderService.reuseOrder(appState.currentOrderPreview.id)) {
+                    UIBridge.notify('已複製回點餐單', 'success');
+                    this.dispatch('navigate', 'home');
+                    UIBridge.updateOrderUI();
+                } else {
+                    UIBridge.notify('找不到可複製的歷史訂單', 'error');
+                }
+            },
+            'add-participant': () => {
+                if (!appState.currentBill) return;
+                const input = document.getElementById('split-participant-input');
+                const name = input?.value?.trim() || '';
+                if (!name) {
+                    return UIBridge.notify('請先輸入成員名稱', 'warn');
+                }
+                SplitService.addParticipant(name);
+                if (input) input.value = '';
+                UIBridge.renderSplitView();
+            },
+            'finish-order': () => {
+                OrderService.clearCurrentOrder();
+                appState.currentOrderPreview = null;
+                UIBridge.updateOrderUI();
+                UIBridge.notify('點餐單已清空', 'success');
+                this.dispatch('navigate', 'home');
+            },
+            'create-quick-account': () => {
+                const nextIndex = appState.financeModule.accounts.length + 1;
+                const account = FinanceService.addAccount(`新帳本 ${nextIndex}`, appState.settings.currency, 'personal');
+                UIBridge.renderAccounts();
+                UIBridge.notify(`已建立 ${account.name}`, 'success');
+            },
+            'view-account-detail': (accountId) => {
+                appState.currentAccountId = accountId;
+                Storage.saveCurrentAccount();
+                UIBridge.renderAccounts();
+            },
+            'save-receipt-to-account': () => {
+                const receipt = appState.receiptResult;
+                const selectedId = document.getElementById('save-to-account-select')?.value;
+                if (!receipt) return UIBridge.notify('沒有可儲存的收據內容', 'warn');
+
+                let account = appState.financeModule.accounts.find(a => a.id === selectedId);
+                if (!account) {
+                    account = FinanceService.addAccount('未命名帳本', receipt.currency || appState.settings.currency, 'personal');
+                }
+
+                FinanceService.addTransaction(account.id, {
+                    type: 'expense',
+                    title: receipt.storeName || '收據記錄',
+                    amount: receipt.totalAmount || 0,
+                    currency: receipt.currency || 'JPY',
+                    date: receipt.date || new Date().toISOString(),
+                    items: receipt.items || [],
+                    source: 'receipt-scan'
+                });
+
+                UIBridge.notify('收據已儲存至帳本', 'success');
+                this.dispatch('navigate', 'finance');
+                UIBridge.renderAccounts();
+            },
         };
+    },
+
+    bindDOMEvents() {
+        // Navigation
+        document.getElementById('nav-home-btn').onclick = () => this.dispatch('navigate', 'home');
+        document.getElementById('nav-history-btn').onclick = () => this.dispatch('navigate', 'history');
+        document.getElementById('nav-finance-btn').onclick = () => this.dispatch('navigate', 'finance');
+        document.getElementById('nav-life-btn').onclick = () => this.dispatch('navigate', 'life-tools');
+
+        // Header
+        document.getElementById('settings-btn').onclick = () => this.dispatch('toggle-settings');
+        
+        // Scanner
+        document.getElementById('start-btn').onclick = () => this.dispatch('start-scan', { mode: 'menu' });
+        document.getElementById('upload-landing-btn').onclick = () => document.getElementById('file-input').click();
+        document.getElementById('scan-btn').onclick = () => this.dispatch('scan-capture');
+        document.getElementById('upload-btn').onclick = () => document.getElementById('file-input').click();
+        document.getElementById('error-upload-btn').onclick = () => document.getElementById('file-input').click();
+        document.getElementById('scanner-close-btn').onclick = () => this.dispatch('close-scanner');
+        document.getElementById('file-input').onchange = (e) => this.dispatch('process-file-upload', e.target.files[0]);
+
+        // Home / History / Finance / Receipt
+        document.getElementById('back-to-scan-btn').onclick = () => this.dispatch('navigate', 'scanner');
+        document.getElementById('receipt-cancel-btn').onclick = () => this.dispatch('navigate', 'home');
+        document.getElementById('receipt-save-btn').onclick = () => this.dispatch('save-receipt-to-account');
+        document.getElementById('receipt-scan-btn').onclick = () => this.dispatch('start-scan', { mode: 'receipt' });
+        document.getElementById('finance-add-account-btn').onclick = () => this.dispatch('create-quick-account');
+        const exportBtn = document.getElementById('export-data-btn');
+        if (exportBtn) exportBtn.onclick = () => this.dispatch('export-data');
+        const importBtn = document.getElementById('import-data-btn');
+        if (importBtn) importBtn.onclick = () => this.dispatch('trigger-import-data');
+        const shareBtn = document.getElementById('share-data-btn');
+        if (shareBtn) shareBtn.onclick = () => this.dispatch('share-data');
+        const importInput = document.getElementById('import-data-input');
+        if (importInput) importInput.onchange = (e) => this.dispatch('import-data', e.target.files[0]);
+
+        // Results
+        document.getElementById('append-scan-btn').onclick = () => this.dispatch('start-scan', { mode: 'menu' });
+        document.getElementById('new-scan-btn').onclick = () => this.dispatch('start-new-scan-session');
+        
+        // Cart / Order
+        document.getElementById('cart-trigger').onclick = () => this.dispatch('show-order-summary');
+        document.getElementById('generate-menu-btn').onclick = (e) => { e.stopPropagation(); this.dispatch('generate-order-preview'); };
+        document.getElementById('clear-order-btn').onclick = () => this.dispatch('clear-order');
+        document.getElementById('menu-back-scan').onclick = () => this.dispatch('navigate', 'scanner');
+        document.getElementById('menu-back-fav').onclick = () => this.dispatch('navigate', 'favorites');
+        document.getElementById('finish-order-btn').onclick = () => this.dispatch('finish-order');
+        document.getElementById('order-preview-back-btn').onclick = () => this.dispatch('navigate', appState.currentOrderPreview?.fromHistory ? 'history' : 'results');
+        document.getElementById('order-preview-split-btn').onclick = () => this.dispatch('go-to-split');
+
+        // Split
+        document.getElementById('split-back-btn').onclick = () => this.dispatch('navigate', 'order-preview');
+        document.getElementById('split-finish-btn').onclick = () => this.dispatch('finalize-split');
+
+        // Help
+        document.getElementById('scanner-help-btn').onclick = () => this.dispatch('toggle-help');
+        document.getElementById('close-help-btn').onclick = () => this.dispatch('close-help');
+        document.getElementById('done-help-btn').onclick = () => this.dispatch('close-help');
     },
 
     async handleScan(base64) {
         if (appState.scannerStatus === 'analyzing') return;
         
-        if (appState.scannerMode === 'receipt') {
-            return await this.handleReceiptScan(base64);
-        }
+        const isReceiptMode = appState.scannerMode === 'receipt';
+        const service = isReceiptMode ? ReceiptService : MenuService;
+        const analyzingText = isReceiptMode ? '正在辨識收據...' : '正在分析菜單...';
 
         appState.scannerStatus = 'analyzing';
         UIBridge.updateScannerUI();
-        UIBridge.notify('正在分析菜單...', 'info');
+        UIBridge.notify(analyzingText, 'info');
         
-        const scanLine = document.getElementById('scan-line');
-        if (scanLine) scanLine.style.opacity = '1';
-
         try {
-            const results = await MenuService.analyzeMenu(base64);
-            
-            // Deduplicate against existing results
-            results.forEach(newItem => {
-                if (!appState.results.some(r => r.nameOriginal === newItem.nameOriginal)) {
-                    appState.results.push(newItem);
-                }
-            });
-
-            appState.currentView = 'results';
-            Storage.saveLastResults();
-            UIBridge.switchView('results');
-            UIBridge.renderResults();
-            DeviceUtils.stopCamera();
-            appState.scannerStatus = 'idle';
-        } catch (error) {
-            console.error(error);
-            UIBridge.notify(error.message, 'error');
-            appState.scannerStatus = 'ready'; // Allow retry
-        } finally {
-            if (scanLine) scanLine.style.opacity = '0';
-            UIBridge.updateScannerUI();
-        }
-    },
-
-    bindNavEvents() {
-        document.getElementById('nav-scan-btn').onclick = () => {
-            if (appState.results.length > 0) {
-                appState.currentView = 'results';
-                UIBridge.switchView('results');
+            if (isReceiptMode) {
+                const result = await service.analyzeReceipt(base64);
+                appState.receiptResult = result;
+                UIBridge.renderReceiptResult();
+                this.dispatch('navigate', 'receipt-result');
+            } else {
+                const results = await service.analyzeMenu(base64);
+                results.forEach(newItem => {
+                    if (!appState.results.some(r => r.nameOriginal === newItem.nameOriginal)) {
+                        appState.results.push(newItem);
+                    }
+                });
+                Storage.saveLastResults();
+                OrderService.addItemsToCart(results);
+                UIBridge.updateOrderUI();
                 UIBridge.renderResults();
-            } else {
-                appState.currentView = 'landing';
-                UIBridge.switchView('landing');
+                this.dispatch('navigate', 'results');
             }
-        };
-
-        document.getElementById('nav-history-btn').onclick = () => {
-            appState.currentView = 'favorites';
-            UIBridge.switchView('favorites');
-            UIBridge.renderResults(appState.favorites, 'favorites-list');
-        };
-
-        document.getElementById('nav-finance-btn').onclick = () => {
-            appState.currentView = 'finance';
-            UIBridge.switchView('finance');
-            UIBridge.renderAccounts();
-        };
-
-        document.getElementById('nav-life-btn').onclick = () => {
-            appState.currentView = 'life-tools';
-            UIBridge.switchView('life-tools');
-            UIBridge.renderLifeTools();
-        };
-
-        document.getElementById('back-to-scan-btn').onclick = () => {
-            appState.currentView = 'scanner';
-            UIBridge.switchView('scanner');
-            DeviceUtils.startCamera();
-        };
-
-        document.getElementById('settings-btn').onclick = () => UIBridge.toggleDrawer(true);
-        document.getElementById('close-settings-btn').onclick = () => UIBridge.toggleDrawer(false);
-    },
-
-    bindSettingsEvents() {
-        document.getElementById('currency-select').onchange = () => {
-            UIBridge.updateSettingsUI();
-        };
-
-        document.getElementById('save-settings-btn').onclick = () => {
-            appState.settings.apiKey = document.getElementById('api-key-input').value;
-            appState.settings.model = document.getElementById('model-select').value;
-            appState.settings.currency = document.getElementById('currency-select').value;
-            appState.settings.prefCustom = document.getElementById('pref-custom').value;
-            appState.settings.customRate = parseFloat(document.getElementById('rate-input').value) || 0;
-
-            Storage.saveSettings();
-            UIBridge.notify('設定已儲存', 'success');
-            UIBridge.toggleDrawer(false);
-            
-            // Re-render current view to reflect changes
-            if (appState.currentView === 'results') UIBridge.renderResults();
-            if (appState.currentView === 'order-menu') UIBridge.renderOrderMenu();
-        };
-
-        document.getElementById('fetch-rate-btn').onclick = async () => {
-            UIBridge.notify('正在獲取最新匯率...', 'info');
-            const currentCurrency = document.getElementById('currency-select').value;
-            const rate = await RateService.fetchLiveRate(currentCurrency);
-            if (rate) {
-                document.getElementById('rate-input').value = rate.toFixed(4);
-                UIBridge.notify('匯率已更新', 'success');
-            } else {
-                UIBridge.notify('匯率獲取失敗', 'error');
-            }
-        };
-
-        document.getElementById('help-api-btn-trigger').onclick = () => UIBridge.toggleHelpModal(true);
-        document.getElementById('close-help-btn').onclick = () => UIBridge.toggleHelpModal(false);
-        document.getElementById('done-help-btn').onclick = () => UIBridge.toggleHelpModal(false);
-        
-        document.getElementById('export-data-btn').onclick = () => this.exportData();
-    },
-
-    bindMenuEvents() {
-        document.getElementById('generate-menu-btn').onclick = (e) => {
-            e.stopPropagation();
-            if (appState.order.length === 0) {
-                UIBridge.notify('請先選擇菜單項目', 'warn');
-                return;
-            }
-            appState.currentView = 'order-menu';
-            UIBridge.switchView('order-menu');
-            UIBridge.renderOrderMenu();
-        };
-
-        document.getElementById('cart-trigger').onclick = () => {
-            const content = document.getElementById('cart-content');
-            const chevron = document.getElementById('cart-chevron');
-            if (content.style.maxHeight) {
-                content.style.maxHeight = null;
-                chevron.classList.replace('fa-chevron-down', 'fa-chevron-up');
-            } else {
-                content.style.maxHeight = '500px';
-                chevron.classList.replace('fa-chevron-up', 'fa-chevron-down');
-            }
-        };
-
-        document.getElementById('clear-order-btn').onclick = () => {
-            appState.order = [];
-            Storage.saveOrder();
-            UIBridge.updateOrderUI();
-        };
-
-        document.getElementById('menu-back-scan').onclick = () => {
-            appState.currentView = 'results';
-            UIBridge.switchView('results');
-            UIBridge.renderResults();
-        };
-
-        document.getElementById('menu-back-fav').onclick = () => {
-            appState.currentView = 'favorites';
-            UIBridge.switchView('favorites');
-            UIBridge.renderResults(appState.favorites, 'favorites-list');
-        };
-
-        document.getElementById('finish-order-btn').onclick = () => {
-            appState.order = [];
-            Storage.saveOrder();
-            UIBridge.updateOrderUI();
-            UIBridge.notify('點餐完成！', 'success');
-            appState.currentView = 'results';
-            UIBridge.switchView('results');
-            UIBridge.renderResults();
-        };
-    },
-
-    bindReceiptEvents() {
-        document.getElementById('receipt-scan-btn').onclick = () => {
-            if (!appState.settings.apiKey) {
-                UIBridge.notify('請先設定 API 金鑰', 'warn');
-                UIBridge.toggleDrawer(true);
-                return;
-            }
-            appState.scannerMode = 'receipt';
-            appState.currentView = 'scanner';
-            UIBridge.switchView('scanner');
-            DeviceUtils.startCamera();
-        };
-
-        document.getElementById('receipt-cancel-btn').onclick = () => {
-            appState.scannerMode = 'menu';
-            appState.currentView = 'finance';
-            UIBridge.switchView('finance');
-        };
-
-        document.getElementById('receipt-save-btn').onclick = () => {
-            const accountId = document.getElementById('save-to-account-select').value;
-            if (!accountId || !appState.receiptResult) {
-                UIBridge.notify('請選擇帳本', 'warn');
-                return;
-            }
-            
-            const res = appState.receiptResult;
-            FinanceService.addTransaction(accountId, {
-                store: res.storeName,
-                amount: res.totalAmount,
-                date: res.date,
-                currency: res.currency,
-                type: 'expense',
-                category: 'dining',
-                note: `收據匯入: ${res.storeName}`,
-                metadata: {
-                    items: res.items,
-                    source: 'receipt_ocr'
-                }
-            });
-            
-            UIBridge.notify('已儲存至帳本', 'success');
-            appState.receiptResult = null;
-            appState.scannerMode = 'menu';
-            appState.currentView = 'finance';
-            UIBridge.switchView('finance');
-            UIBridge.renderAccounts();
-        };
-    },
-
-    async handleReceiptScan(base64) {
-        appState.scannerStatus = 'analyzing';
-        UIBridge.updateScannerUI();
-        UIBridge.notify('正在辨識收據...', 'info');
-        
-        const scanLine = document.getElementById('scan-line');
-        if (scanLine) scanLine.style.opacity = '1';
-
-        try {
-            const result = await ReceiptService.analyzeReceipt(base64);
-            appState.receiptResult = result;
-            UIBridge.switchView('receipt-result');
-            UIBridge.renderReceiptResult();
             DeviceUtils.stopCamera();
             appState.scannerStatus = 'idle';
         } catch (error) {
             console.error(error);
-            UIBridge.notify(error.message || '收據辨識失敗', 'error');
-            // Reset mode on failure to avoid contamination
-            appState.scannerMode = 'menu';
-            appState.currentView = 'finance';
-            UIBridge.switchView('finance');
-            DeviceUtils.stopCamera();
-            appState.scannerStatus = 'idle';
+            UIBridge.notify(error.message || '辨識失敗', 'error');
+            appState.scannerStatus = 'ready';
+            this.dispatch('navigate', 'home');
         } finally {
-            if (scanLine) scanLine.style.opacity = '0';
             UIBridge.updateScannerUI();
         }
     },
-
-    bindFinanceEvents() {
-        document.getElementById('finance-add-account-btn').onclick = () => {
-            const name = prompt('請輸入帳本名稱：');
-            if (!name) return;
-            const currency = prompt('請輸入幣別 (TWD/JPY/HKD/USD)：', appState.settings.currency) || 'TWD';
-            
-            FinanceService.addAccount(name, currency);
-            UIBridge.renderAccounts();
-        };
-    },
-
-    bindLifeToolsEvents() {
-        // inline events handled by onclick in UIBridge.renderLifeTools
-    },
-
-    // Action Handlers for list items
-    addOrderItem(index, source = 'results') {
-        const item = (source === 'results') ? appState.results[index] : appState.favorites[index];
-        if (!item) return;
-
-        const existing = appState.order.find(o => o.nameOriginal === item.nameOriginal);
-        if (existing) {
-            existing.qty++;
-        } else {
-            appState.order.push({ ...item, qty: 1 });
-        }
-        
-        Storage.saveOrder();
-        UIBridge.updateOrderUI();
-        if (source === 'results') UIBridge.renderResults();
-        else UIBridge.renderResults(appState.favorites, 'favorites-list');
-    },
-
-    updateQty(index, delta) {
-        const item = appState.order[index];
-        if (!item) return;
-        
-        item.qty += delta;
-        if (item.qty <= 0) {
-            appState.order.splice(index, 1);
-        }
-        
-        Storage.saveOrder();
-        UIBridge.updateOrderUI();
-        
-        // Update results view if active
-        if (appState.currentView === 'results') UIBridge.renderResults();
-        if (appState.currentView === 'favorites') UIBridge.renderResults(appState.favorites, 'favorites-list');
-    },
-
-    toggleFavorite(index, source = 'results-list') {
-        const items = (source === 'results-list') ? appState.results : appState.favorites;
-        const item = items[index];
-        if (!item) return;
-
-        const favIndex = appState.favorites.findIndex(f => f.nameOriginal === item.nameOriginal);
-        if (favIndex > -1) {
-            appState.favorites.splice(favIndex, 1);
-        } else {
-            appState.favorites.push(item);
-        }
-
-        Storage.saveFavorites();
-        if (source === 'results-list') UIBridge.renderResults(appState.results, 'results-list');
-        else UIBridge.renderResults(appState.favorites, 'favorites-list');
-    },
-
-    toggleMenuFavorite(index) {
-        const item = appState.order[index];
-        if (!item) return;
-        
-        const favIndex = appState.favorites.findIndex(f => f.nameOriginal === item.nameOriginal);
-        if (favIndex > -1) {
-            appState.favorites.splice(favIndex, 1);
-        } else {
-            appState.favorites.push({
-                nameOriginal: item.nameOriginal,
-                nameTranslated: item.nameTranslated,
-                price: item.price,
-                description: item.description,
-                dietary_tags: item.dietary_tags,
-                allergen_warning: item.allergen_warning
-            });
-        }
-        
-        Storage.saveFavorites();
-        UIBridge.renderOrderMenu();
-    },
-
-    saveMemo() {
-        const input = document.getElementById('memo-input');
-        if (!input || !input.value.trim()) return;
-        LifeToolsService.saveMemo(input.value);
-        UIBridge.renderLifeToolDetail('memo');
-    },
-
-    calculateCurrency() {
-        const jpyInput = document.getElementById('calc-jpy');
-        const resultEl = document.getElementById('calc-result');
-        if (!jpyInput || !resultEl) return;
-        
-        const jpy = parseFloat(jpyInput.value) || 0;
-        const rate = RateService.getExchangeRate(appState.settings.currency);
-        resultEl.innerText = RateService.format(jpy, appState.settings.currency, rate);
-    },
-
-    openLifeTool(toolId) {
-        UIBridge.renderLifeToolDetail(toolId);
-    },
-
-    viewAccountDetail(accountId) {
-        const account = FinanceService.getAccount(accountId);
-        if (!account) return;
-        
-        UIBridge.notify(`帳本 「${account.name}」 詳情介面開發中`, 'info');
-    },
-
-    exportData() {
-        const data = {
-            accounts: appState.financeModule.accounts,
-            memos: appState.lifeToolsModule.memos,
-            favorites: appState.favorites,
-            exportDate: new Date().toISOString()
-        };
-        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `menulens_backup_${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
 };

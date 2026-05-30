@@ -44,8 +44,41 @@ export const Storage = {
         localStorage.setItem('menulens_last_results', JSON.stringify(appState.results));
     },
 
+    saveOrderHistory() {
+        localStorage.setItem('menulens_order_history', JSON.stringify(appState.orderHistory));
+    },
+
+    saveCurrentBill() {
+        localStorage.setItem('menulens_current_bill', JSON.stringify(appState.currentBill));
+    },
+
     saveFinance() {
         localStorage.setItem('menulens_accounts', JSON.stringify(appState.financeModule.accounts));
+    },
+
+    saveCurrentAccount() {
+        localStorage.setItem('menulens_current_account_id', appState.currentAccountId || '');
+    },
+
+    exportBackup() {
+        const backup = {};
+        Object.keys(localStorage)
+            .filter(key => key.startsWith('menulens_'))
+            .forEach(key => {
+                backup[key] = localStorage.getItem(key);
+            });
+        return backup;
+    },
+
+    importBackup(backupData = {}) {
+        Object.entries(backupData).forEach(([key, value]) => {
+            if (!key.startsWith('menulens_')) return;
+            if (typeof value === 'string') {
+                localStorage.setItem(key, value);
+            } else {
+                localStorage.setItem(key, JSON.stringify(value));
+            }
+        });
     },
 
     saveLifeTools() {

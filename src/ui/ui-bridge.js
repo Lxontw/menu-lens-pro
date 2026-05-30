@@ -1,55 +1,74 @@
 import { appState } from '../state/app-state.js';
+import { Storage } from '../storage/local-storage.js';
 import { RateService } from '../core/rate-service.js';
 import { LifeToolsService } from '../core/life-tools-service.js';
+import { views } from './views.js';
 
 /**
  * UI Bridge - Handles all DOM updates
  */
 export const UIBridge = {
     switchView(viewName) {
-        const views = ['landing', 'scanner', 'results', 'favorites', 'order-menu', 'finance', 'life-tools', 'receipt-result'];
+        const normalizedView = {
+            'split-view': 'split',
+            'order-preview-view': 'order-preview',
+            'receipt-result-view': 'receipt-result'
+        }[viewName] || viewName;
+
+        const views = ['home', 'landing', 'scanner', 'results', 'favorites', 'order-menu', 'finance', 'life-tools', 'receipt-result', 'history', 'order-preview', 'split'];
         views.forEach(v => {
             const el = document.getElementById(`${v}-view`);
-            if (el) {
-                if (v === viewName) {
-                    el.classList.remove('hidden');
-                } else {
-                    el.classList.add('hidden');
-                }
+            if (!el) return;
+            if (v === normalizedView) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
             }
         });
 
         // Toggle bottom nav visibility
         const nav = document.getElementById('bottom-nav');
         if (nav) {
-            const hiddenViews = ['landing', 'scanner', 'order-menu', 'receipt-result'];
-            hiddenViews.includes(viewName) ? nav.classList.add('hidden') : nav.classList.remove('hidden');
-            
+            const hiddenViews = ['landing', 'scanner', 'order-menu', 'receipt-result', 'order-preview', 'split'];
+            hiddenViews.includes(normalizedView) ? nav.classList.add('hidden') : nav.classList.remove('hidden');
+
             // Update active state in nav
             const navMap = {
-                'results': 'nav-scan-btn',
-                'favorites': 'nav-history-btn',
+                'home': 'nav-home-btn',
+                'history': 'nav-history-btn',
                 'finance': 'nav-finance-btn',
                 'life-tools': 'nav-life-btn'
             };
-            
+
             Object.values(navMap).forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) {
-                    btn.classList.replace('text-indigo-600', 'text-slate-400');
+                    btn.classList.remove('text-indigo-600');
+                    btn.classList.add('text-slate-400');
                 }
             });
-            
-            if (navMap[viewName]) {
-                const activeBtn = document.getElementById(navMap[viewName]);
-                if (activeBtn) activeBtn.classList.replace('text-slate-400', 'text-indigo-600');
+
+            if (navMap[normalizedView]) {
+                const activeBtn = document.getElementById(navMap[normalizedView]);
+                if (activeBtn) {
+                    activeBtn.classList.remove('text-slate-400');
+                    activeBtn.classList.add('text-indigo-600');
+                }
             }
         }
 
+        appState.currentView = normalizedView;
+
         // 特別處理：Landing View 時若購物車為空，隱藏 Panel
-        if (viewName === 'landing') {
+        if (normalizedView === 'landing') {
             this.updateOrderUI();
         }
+    },
+
+    renderHomeDashboard() {
+        const container = document.getElementById('home-view');
+        if (!container) return;
+        container.innerHTML = views.renderHomepage(appState);
     },
 
     updateScannerUI(status = appState.scannerStatus) {
@@ -82,7 +101,15 @@ export const UIBridge = {
         }
 
         if (errorEl) {
-            status === 'error' ? errorEl.classList.remove('hidden') : errorEl.classList.add('hidden');
+            if (status === 'error') {
+                errorEl.classList.remove('hidden');
+                scanBtn?.classList.add('hidden'); // Hide main scan button on error
+                statusEl?.classList.add('hidden'); // Hide status text on error
+            } else {
+                errorEl.classList.add('hidden');
+                scanBtn?.classList.remove('hidden');
+                statusEl?.classList.remove('hidden');
+            }
         }
 
         // 按鈕可用性與動畫
@@ -130,24 +157,40 @@ export const UIBridge = {
 
     toggleDrawer(open) {
         const drawer = document.getElementById('settings-drawer');
-        const onboardingTip = document.getElementById('api-onboarding-tip');
         if (drawer) {
             if (open) {
-                drawer.classList.replace('drawer-closed', 'drawer-open');
-                this.updateSettingsUI(true); // 開啟時同步狀態
-                
-                if (onboardingTip) {
-                    !appState.settings.apiKey ? onboardingTip.classList.remove('hidden') : onboardingTip.classList.add('hidden');
-                }
+                drawer.innerHTML = views.renderSettings(appState.settings);
+                drawer.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+                drawer.classList.remove('drawer-closed');
+                drawer.classList.add('drawer-open', 'opacity-100', 'pointer-events-auto');
+                // After rendering, re-bind events for the new elements
+                document.getElementById('close-settings-btn').onclick = () => this.dispatch('close-settings');
+                document.getElementById('save-settings-btn').onclick = () => this.dispatch('save-settings');
+                document.getElementById('fetch-rate-btn').onclick = () => this.dispatch('fetch-live-rate');
+                document.getElementById('export-data-btn').onclick = () => this.dispatch('export-data');
+                document.getElementById('import-data-btn').onclick = () => this.dispatch('trigger-import-data');
+                document.getElementById('share-data-btn').onclick = () => this.dispatch('share-data');
+                document.getElementById('import-data-input').onchange = (e) => this.dispatch('import-data', e.target.files[0]);
+                document.getElementById('currency-select').onchange = () => {
+                    const label = document.getElementById('rate-label');
+                    if (label) label.innerText = `自訂匯率 (1 JPY = ? ${document.getElementById('currency-select').value})`;
+                };
+                document.getElementById('help-api-btn-trigger').onclick = () => this.dispatch('toggle-help');
             } else {
-                drawer.classList.replace('drawer-open', 'drawer-closed');
+                drawer.classList.remove('drawer-open', 'opacity-100', 'pointer-events-auto');
+                drawer.classList.add('drawer-closed', 'opacity-0', 'pointer-events-none');
             }
         }
     },
 
-    toggleHelpModal(show) {
+    toggleHelpModal(open) {
         const modal = document.getElementById('help-modal');
-        if (modal) show ? modal.classList.remove('hidden') : modal.classList.add('hidden');
+        if (!modal) return;
+        if (open) {
+            modal.classList.remove('hidden');
+        } else {
+            modal.classList.add('hidden');
+        }
     },
 
     escapeHTML(str) {
@@ -158,30 +201,6 @@ export const UIBridge = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
-    },
-
-    updateSettingsUI(syncCurrencyFromState = false) {
-        const currencyEl = document.getElementById('currency-select');
-        if (syncCurrencyFromState && currencyEl) {
-            currencyEl.value = appState.settings.currency;
-        }
-
-        const currentCurrency = currencyEl?.value || appState.settings.currency;
-        const inputs = {
-            'api-key-input': appState.settings.apiKey,
-            'model-select': appState.settings.model,
-            'currency-select': currentCurrency,
-            'pref-custom': appState.settings.prefCustom,
-            'rate-input': RateService.getExchangeRate(currentCurrency) || ''
-        };
-
-        for (const [id, value] of Object.entries(inputs)) {
-            const el = document.getElementById(id);
-            if (el) el.value = value;
-        }
-
-        const label = document.getElementById('rate-label');
-        if (label) label.innerText = `自訂匯率 (1 JPY = ? ${currentCurrency})`;
     },
 
     renderResults(items = appState.results, targetId = 'results-list') {
@@ -266,8 +285,8 @@ export const UIBridge = {
         const totalJPYVal = appState.order.reduce((s, i) => s + (i.price * i.qty), 0);
         const rate = RateService.getExchangeRate(appState.settings.currency);
 
-        // Landing view 且購物車為空時，完全隱藏 panel
-        if (totalItems === 0 || (appState.currentView === 'landing' && totalItems === 0)) {
+        // Hide panel completely if cart is empty
+        if (totalItems === 0) {
             panel.classList.add('translate-y-full');
             return;
         }
@@ -351,25 +370,28 @@ export const UIBridge = {
 
     renderAccounts() {
         const container = document.getElementById('accounts-list');
+        const detailContainer = document.getElementById('account-detail-container');
         if (!container) return;
 
         const accounts = appState.financeModule.accounts;
         if (accounts.length === 0) {
             container.innerHTML = '<div class="text-center py-20 text-slate-400">目前沒有帳本，點擊右上方新增</div>';
+            if (detailContainer) detailContainer.innerHTML = '';
             return;
         }
 
         container.innerHTML = accounts.map(acc => {
             const total = acc.items.reduce((sum, item) => sum + item.amount, 0);
+            const isActive = acc.id === appState.currentAccountId;
             return `
-                <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 animate-fade-in active:scale-[0.98] transition-transform" 
-                     onclick="EventBus.viewAccountDetail('${acc.id}')">
+                <div class="bg-white rounded-3xl shadow-sm border ${isActive ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-100'} p-6 animate-fade-in active:scale-[0.98] transition-transform" 
+                     onclick="EventBus.dispatch('view-account-detail', '${acc.id}')">
                     <div class="flex justify-between items-start mb-4">
                         <div>
                             <div class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1">${acc.type === 'personal' ? '個人帳本' : '共享帳本'}</div>
                             <h4 class="font-bold text-lg text-slate-800">${this.escapeHTML(acc.name)}</h4>
                         </div>
-                        <div class="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400">
+                        <div class="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center ${isActive ? 'text-indigo-600' : 'text-slate-400'}">
                             <i class="fas fa-chevron-right"></i>
                         </div>
                     </div>
@@ -384,6 +406,48 @@ export const UIBridge = {
                 </div>
             `;
         }).join('');
+
+        if (!detailContainer) return;
+
+        const current = accounts.find(acc => acc.id === appState.currentAccountId) || accounts[0];
+        if (!current) {
+            detailContainer.innerHTML = '';
+            return;
+        }
+
+        appState.currentAccountId = current.id;
+        Storage.saveCurrentAccount();
+        const items = current.items || [];
+        const total = items.reduce((sum, item) => sum + item.amount, 0);
+        detailContainer.innerHTML = `
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 space-y-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1">目前選取帳本</div>
+                        <h4 class="font-bold text-xl text-slate-900">${this.escapeHTML(current.name)}</h4>
+                        <p class="text-xs text-slate-400 mt-1">${items.length} 筆紀錄 · ${this.escapeHTML(current.currency)}</p>
+                    </div>
+                    <button id="finance-open-receipt-btn" onclick="EventBus.dispatch('start-scan', { mode: 'receipt' })" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold active:scale-95 transition-transform">掃描收據</button>
+                </div>
+                <div class="flex justify-between items-center bg-slate-50 rounded-2xl p-4">
+                    <span class="text-slate-500 text-sm font-medium">目前總額</span>
+                    <span class="text-2xl font-black text-slate-900">${this.escapeHTML(current.currency)} ${total.toLocaleString()}</span>
+                </div>
+                <div class="space-y-3">
+                    ${(items.length > 0 ? items : []).map(tx => `
+                        <div class="flex justify-between items-center p-3 rounded-2xl border border-slate-100 bg-white">
+                            <div class="min-w-0 pr-4">
+                                <p class="font-bold text-slate-800 truncate">${this.escapeHTML(tx.title)}</p>
+                                <p class="text-[10px] text-slate-400">${this.escapeHTML(new Date(tx.date).toLocaleString())} · ${this.escapeHTML(tx.source || 'manual')}</p>
+                            </div>
+                            <div class="text-right flex-shrink-0">
+                                <p class="font-bold text-rose-600">-${this.escapeHTML(tx.currency || current.currency)} ${(tx.amount || 0).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    `).join('') || '<div class="text-center py-6 text-slate-400 text-sm">目前沒有交易紀錄</div>'}
+                </div>
+            </div>
+        `;
     },
 
     renderLifeTools() {
@@ -518,5 +582,114 @@ export const UIBridge = {
         select.innerHTML = accounts.length > 0 ? accounts.map(acc => `
             <option value="${this.escapeHTML(acc.id)}">${this.escapeHTML(acc.name)} (${this.escapeHTML(acc.currency)})</option>
         `).join('') : '<option value="">請先建立帳本</option>';
+    },
+
+    renderOrderPreview(order) {
+        const container = document.getElementById('staff-order-list');
+        if (!container) return;
+
+        if (!order || order.items.length === 0) {
+            container.innerHTML = '<div class="text-center text-white/60">訂單是空的</div>';
+            return;
+        }
+
+        const total = order.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+        container.innerHTML = `
+            <div class="text-center mb-4">
+                 <p class="text-sm text-white/60">訂單ID: ${order.id}</p>
+                 <p class="text-sm text-white/60">${new Date(order.timestamp).toLocaleString()}</p>
+            </div>
+            ${order.items.map(item => `
+                <div class="flex justify-between items-center text-lg py-3 border-b border-white/10 last:border-0">
+                    <div>
+                        <span class="font-bold">${this.escapeHTML(item.nameTranslated)}</span>
+                        <span class="text-white/60 text-sm ml-2">x ${item.qty}</span>
+                    </div>
+                    <div class="font-bold">¥${(item.price * item.qty).toLocaleString()}</div>
+                </div>
+            `).join('')}
+            <div class="flex justify-between items-center text-2xl font-bold pt-4 mt-4 border-t-2 border-indigo-400">
+                <span>總計</span>
+                <span>¥${total.toLocaleString()}</span>
+            </div>
+            ${order.fromHistory ? `
+                <button id="reuse-history-order-btn" onclick="EventBus.dispatch('reuse-history-order')" class="w-full mt-4 py-4 bg-emerald-500 rounded-2xl font-bold text-white active:scale-95 transition-transform">
+                    複製回點餐單
+                </button>
+            ` : ''}
+        `;
+    },
+
+    renderSplitView() {
+        const container = document.getElementById('split-view-content');
+        if (!container || !appState.currentBill) return;
+
+        const bill = appState.currentBill;
+        const total = bill.totalAmount;
+
+        container.innerHTML = `
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <div class="flex justify-between items-baseline mb-4">
+                    <h4 class="font-bold text-lg">總金額</h4>
+                    <span class="text-3xl font-black text-indigo-600">¥${total.toLocaleString()}</span>
+                </div>
+                <div class="space-y-3" id="participants-list">
+                    ${bill.participants.map(p => `
+                        <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl">
+                            <span class="font-bold text-slate-700">${this.escapeHTML(p.name)}</span>
+                            <span class="font-bold text-indigo-600">¥${p.amount.toLocaleString()}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="mt-4 space-y-3">
+                    <div class="flex gap-2">
+                        <input id="split-participant-input" type="text" class="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none" placeholder="輸入成員名稱">
+                        <button id="add-participant-btn" onclick="EventBus.dispatch('add-participant')" class="px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm active:scale-95 transition-transform">
+                            新增
+                        </button>
+                    </div>
+                    <button class="w-full py-3 border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold text-sm" onclick="EventBus.dispatch('add-participant')">
+                        <i class="fas fa-plus mr-2"></i>新增分帳成員
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    renderHistoryList() {
+        const container = document.getElementById('history-list-container');
+        if (!container) return;
+
+        const history = appState.orderHistory;
+        if (!history || history.length === 0) {
+            container.innerHTML = '<div class="text-center py-20 text-slate-400">目前沒有歷史訂單</div>';
+            return;
+        }
+
+        container.innerHTML = history.map(order => `
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 active:scale-[0.98] transition-transform cursor-pointer" onclick="EventBus.dispatch('view-history-item', { id: '${order.id}' })">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <div class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1">
+                            ${new Date(order.timestamp).toLocaleDateString()}
+                        </div>
+                        <h4 class="font-bold text-lg text-slate-800">訂單 #${order.id.slice(-6)}</h4>
+                    </div>
+                    <div class="text-right">
+                         <div class="text-2xl font-black text-slate-900">
+                            ¥${order.items.reduce((t, i) => t + i.price * i.qty, 0).toLocaleString()}
+                        </div>
+                        <div class="text-xs font-bold text-slate-400">
+                            ${order.items.reduce((t, i) => t + i.qty, 0)} 個品項
+                        </div>
+                    </div>
+                </div>
+                <div class="text-[10px] text-slate-400 flex items-center justify-between">
+                    <span>${order.splitDetails ? '已分帳' : '可重新使用'}</span>
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            </div>
+        `).join('');
     }
 };
