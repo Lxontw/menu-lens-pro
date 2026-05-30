@@ -11,13 +11,19 @@ export const RateService = {
 
     async fetchLiveRate(currency) {
         try {
-            // Using Frankfurter API (Free, no key)
-            const response = await fetch(`https://api.frankfurter.dev/v2/latest?base=JPY&symbols=${currency}`);
+            // Using Open ER API (Free, currently stable)
+            const response = await fetch(`https://open.er-api.com/v6/latest/JPY`);
             if (!response.ok) throw new Error('Network response was not ok');
             const data = await response.json();
-            return data.rates[currency];
+            
+            if (data.result === 'success' && data.rates && data.rates[currency]) {
+                return data.rates[currency];
+            }
+            
+            console.warn(`Rate for ${currency} not found in API response`);
+            return null;
         } catch (error) {
-            console.error('Failed to fetch live rate:', error);
+            console.error('Failed to fetch live rate from open.er-api.com:', error);
             return null;
         }
     },

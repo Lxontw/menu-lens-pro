@@ -62,6 +62,24 @@ export const EventBus = {
             UIBridge.switchView('scanner');
             DeviceUtils.startCamera();
         };
+
+        document.getElementById('scanner-close-btn').onclick = () => {
+            DeviceUtils.stopCamera();
+            if (appState.scannerMode === 'receipt') {
+                appState.scannerMode = 'menu';
+                appState.currentView = 'finance';
+                UIBridge.switchView('finance');
+            } else {
+                // menu mode
+                if (appState.results && appState.results.length > 0) {
+                    appState.currentView = 'results';
+                    UIBridge.switchView('results');
+                } else {
+                    appState.currentView = 'landing';
+                    UIBridge.switchView('landing');
+                }
+            }
+        };
     },
 
     async handleScan(base64) {

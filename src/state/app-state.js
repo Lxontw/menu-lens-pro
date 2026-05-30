@@ -6,7 +6,7 @@ import { Storage } from '../storage/local-storage.js';
 export const appState = {
     settings: {
         apiKey: localStorage.getItem('menulens_api_key') || '',
-        model: localStorage.getItem('menulens_model') || 'gemini-2.5-flash',
+        model: localStorage.getItem('menulens_model') || 'gemini-3.5-flash',
         currency: localStorage.getItem('menulens_currency') || 'TWD',
         prefCustom: localStorage.getItem('menulens_pref_custom') || '',
         customRate: 0 // Will be populated by UIBridge or RateService when needed
