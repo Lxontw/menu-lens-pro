@@ -6,6 +6,14 @@ import { UIBridge } from './ui/ui-bridge.js';
  * App Bootstrapper
  */
 window.addEventListener('load', () => {
+    // Model Migration / Fallback logic
+    const allowedModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];
+    if (!allowedModels.includes(appState.settings.model)) {
+        console.log(`Detected legacy/invalid model: ${appState.settings.model}. Falling back to gemini-2.5-flash.`);
+        appState.settings.model = 'gemini-2.5-flash';
+        localStorage.setItem('menulens_model', 'gemini-2.5-flash');
+    }
+
     // Initialize Event Bindings
     EventBus.init();
 
