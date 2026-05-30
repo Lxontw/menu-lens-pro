@@ -127,13 +127,13 @@ export const views = {
 
         const itemsHtml = order.items.map(item => `
             <li class="flex justify-between items-center py-3 border-b border-slate-100">
-                <div>
-                    <p class="font-medium text-slate-800">${item.nameOriginal}</p>
-                    <p class="text-xs text-slate-400">${item.nameTranslated || ''}</p>
+                <div class="flex-1 min-w-0 pr-4">
+                    <p class="font-bold text-slate-800 truncate">${UIBridge.escapeHTML(item.nameTranslated || item.name)}</p>
+                    <p class="text-xs text-slate-400 truncate">${UIBridge.escapeHTML(item.nameOriginal || '')}</p>
                 </div>
-                <div class="text-right">
-                    <p class="font-medium text-slate-800">¥${(item.price * item.qty).toLocaleString()}</p>
-                    <p class="text-xs text-slate-400">${item.qty} x ¥${item.price.toLocaleString()}</p>
+                <div class="text-right flex-shrink-0">
+                    <p class="font-bold text-slate-800">¥${(item.price * item.qty).toLocaleString()}</p>
+                    <p class="text-[10px] text-slate-400 font-bold">${item.qty} x ¥${item.price.toLocaleString()}</p>
                 </div>
             </li>
         `).join('');

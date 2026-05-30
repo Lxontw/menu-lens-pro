@@ -1,4 +1,5 @@
 import { appState } from '../state/app-state.js';
+import { RateService } from './rate-service.js';
 
 /**
  * Receipt OCR Service (Gemini API)
@@ -10,22 +11,30 @@ export const ReceiptService = {
         const prompt = `
             Analyze this receipt image. Extract the following information into a JSON object:
             {
-                "storeName": "Name of the store",
+                "storeName": "Name of the store (Original)",
+                "storeNameTranslated": "Name of the store (Traditional Chinese)",
                 "date": "YYYY-MM-DD",
                 "totalAmount": 1250,
                 "currency": "JPY",
+                "paymentMethod": "Credit Card/Cash/etc (Optional, omit if not clear)",
                 "items": [
-                    { "name": "Item Name", "price": 500, "qty": 1 },
+                    { 
+                        "nameOriginal": "Item Name in original language", 
+                        "nameTranslated": "Item Name in Traditional Chinese",
+                        "price": 500, 
+                        "qty": 1 
+                    },
                     ...
                 ]
             }
             
             Rules:
-            1. If date is not clear, use current date: ${new Date().toISOString().split('T')[0]}.
-            2. Extract currency from symbols or text (e.g., ¥ -> JPY, $ -> USD).
-            3. Ensure totalAmount and price are numbers.
-            4. If store name is in Japanese, provide a Traditional Chinese translation in parentheses if possible.
-            5. Return ONLY the raw JSON object.
+            1. Language: Translate store name and all item names to Traditional Chinese (Taiwan style).
+            2. If date is not clear, use current date: ${new Date().toISOString().split('T')[0]}.
+            3. Extract currency from symbols or text (e.g., ¥ -> JPY, $ -> USD).
+            4. Ensure totalAmount and price are numbers.
+            5. Return ONLY the raw JSON object. Do not include markdown code blocks.
+            6. paymentMethod is optional; do not fabricate it if not present on the receipt.
         `;
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${appState.settings.model}:generateContent?key=${appState.settings.apiKey}`;
@@ -60,7 +69,7 @@ export const ReceiptService = {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (!text) {
-            throw new Error('辨識失敗：Gemini 未回傳有效內容 (可能是安全封鎖或格式錯誤)');
+            throw new Error('辨識失敗：Gemini 未回傳有效內容 (可能是安全封鎖 or 格式錯誤)');
         }
         
         try {
@@ -78,20 +87,36 @@ export const ReceiptService = {
             }
 
             // Normalization
+            const originalAmount = parseFloat(result.totalAmount) || 0;
+            const originalCurrency = result.currency || 'JPY';
+            const targetCurrency = appState.settings.currency || 'TWD';
+
             const normalized = {
-                storeName: result.storeName || '未知商店',
+                storeName: result.storeName || '未知商店', // Legacy support
+                originalStoreName: result.storeName || '未知商店',
+                translatedStoreName: result.storeNameTranslated || result.storeName || '未知商店',
                 date: result.date || new Date().toISOString().split('T')[0],
-                totalAmount: parseFloat(result.totalAmount) || 0,
-                currency: result.currency || 'JPY',
+                originalAmount: originalAmount,
+                convertedAmount: RateService.convert(originalAmount, originalCurrency, targetCurrency),
+                originalCurrency: originalCurrency,
+                convertedCurrency: targetCurrency,
+                totalAmount: originalAmount, // Keep for backward compatibility
+                currency: originalCurrency, // Keep for backward compatibility
                 items: Array.isArray(result.items) ? result.items.map(item => ({
-                    name: item.name || '未命名項目',
+                    nameOriginal: item.nameOriginal || item.name || '未命名項目',
+                    nameTranslated: item.nameTranslated || item.name || '未命名項目',
                     price: parseFloat(item.price) || 0,
                     qty: parseInt(item.qty) || 1
-                })) : []
+                })) : [],
+                rawText: text // Preserve raw OCR text as requested
             };
 
-            // Strict Validation (Requirement 2)
-            if (normalized.totalAmount === 0 && normalized.items.length === 0) {
+            if (result.paymentMethod) {
+                normalized.paymentMethod = result.paymentMethod;
+            }
+
+            // Strict Validation
+            if (normalized.originalAmount === 0 && normalized.items.length === 0) {
                 throw new Error('辨識無效：收據未包含有效的金額或項目明細。');
             }
 

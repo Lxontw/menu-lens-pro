@@ -235,8 +235,8 @@ export const UIBridge = {
                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden p-5 space-y-4 animate-fade-in">
                     <div class="flex justify-between items-start">
                         <div class="flex-1 pr-4">
-                            <h4 class="text-lg font-bold text-slate-900 mb-1">${this.escapeHTML(item.nameTranslated)}</h4>
-                            <p class="text-sm font-medium text-slate-400 mb-2">${this.escapeHTML(item.nameOriginal)}</p>
+                            <h4 class="text-lg font-bold text-slate-900 mb-1">${this.escapeHTML(item.nameTranslated || item.name)}</h4>
+                            <p class="text-sm font-medium text-slate-400 mb-2">${this.escapeHTML(item.nameOriginal || '')}</p>
                             ${item.description ? `<p class="text-[11px] text-slate-500 leading-relaxed">${this.escapeHTML(item.description)}</p>` : ''}
                         </div>
                         <div class="text-right flex-shrink-0">
@@ -298,8 +298,8 @@ export const UIBridge = {
         listContainer.innerHTML = appState.order.map((item, index) => `
             <div class="flex justify-between items-center py-2">
                 <div class="flex-1 min-w-0 pr-4">
-                    <div class="font-bold text-sm truncate">${this.escapeHTML(item.nameTranslated)}</div>
-                    <div class="text-[10px] text-slate-400 truncate">${this.escapeHTML(item.nameOriginal)}</div>
+                    <div class="font-bold text-sm truncate">${this.escapeHTML(item.nameTranslated || item.name)}</div>
+                    <div class="text-[10px] text-slate-400 truncate">${this.escapeHTML(item.nameOriginal || '')}</div>
                 </div>
                 <div class="flex items-center gap-3 bg-slate-100 rounded-xl px-2 py-1">
                     <button onclick="EventBus.updateQty(${index}, -1)" class="w-6 h-6 flex items-center justify-center text-slate-400 active:scale-90">
@@ -346,11 +346,11 @@ export const UIBridge = {
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-baseline mb-1">
-                            <h4 class="text-lg font-bold text-slate-800 truncate">${this.escapeHTML(item.nameTranslated)}</h4>
+                            <h4 class="text-lg font-bold text-slate-800 truncate">${this.escapeHTML(item.nameTranslated || item.name)}</h4>
                             <span class="text-sm font-bold text-indigo-600">¥${subtotalJPY.toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between items-baseline">
-                            <p class="text-base font-medium text-slate-400 truncate">${this.escapeHTML(item.nameOriginal)}</p>
+                            <p class="text-base font-medium text-slate-400 truncate">${this.escapeHTML(item.nameOriginal || '')}</p>
                             <span class="text-xs font-bold text-slate-500">${RateService.format(subtotalJPY, appState.settings.currency, rate)}</span>
                         </div>
                         <div class="flex flex-wrap gap-1 mt-2">
@@ -547,10 +547,21 @@ export const UIBridge = {
 
         const res = appState.receiptResult;
         
+        // Helper to format conversion text
+        const getConversionText = () => {
+            if (res.convertedAmount !== null && res.convertedCurrency && res.originalCurrency !== res.convertedCurrency) {
+                return `約 ${res.convertedCurrency} ${res.convertedAmount.toLocaleString()}`;
+            }
+            return '';
+        };
+
+        const conversionText = getConversionText();
+
         container.innerHTML = `
             <div class="bg-slate-50 rounded-3xl p-6 border border-slate-100">
                 <div class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1">消費店家</div>
-                <h4 class="text-xl font-black text-slate-900 mb-4">${this.escapeHTML(res.storeName)}</h4>
+                <h4 class="text-xl font-black text-slate-900 mb-1">${this.escapeHTML(res.translatedStoreName || res.storeName)}</h4>
+                <p class="text-sm font-medium text-slate-400 mb-4">${this.escapeHTML(res.originalStoreName || '')}</p>
                 
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
@@ -559,18 +570,29 @@ export const UIBridge = {
                     </div>
                     <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                         <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">總計金額</div>
-                        <div class="text-sm font-bold text-indigo-600">${this.escapeHTML(res.currency)} ${(res.totalAmount || 0).toLocaleString()}</div>
+                        <div class="text-sm font-bold text-indigo-600">${this.escapeHTML(res.originalCurrency)} ${(res.originalAmount || 0).toLocaleString()}</div>
+                        ${conversionText ? `<div class="text-[10px] font-bold text-slate-400 mt-1">${conversionText}</div>` : ''}
                     </div>
                 </div>
+
+                ${res.paymentMethod ? `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">支付方式</div>
+                    <div class="text-sm font-bold text-slate-700">${this.escapeHTML(res.paymentMethod)}</div>
+                </div>
+                ` : ''}
 
                 <div class="space-y-3">
                     <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">明細項目</div>
                     ${(res.items || []).length > 0 ? res.items.map(item => `
-                        <div class="flex justify-between items-center text-sm font-medium py-2 border-b border-slate-200 last:border-0">
-                            <span class="text-slate-700 flex-1 pr-4 truncate">${this.escapeHTML(item.name)}</span>
+                        <div class="flex justify-between items-center text-sm font-medium py-3 border-b border-slate-200 last:border-0">
+                            <div class="flex-1 min-w-0 pr-4">
+                                <div class="text-slate-900 font-bold truncate">${this.escapeHTML(item.nameTranslated || item.name)}</div>
+                                <div class="text-slate-400 text-[10px] truncate">${this.escapeHTML(item.nameOriginal || '')}</div>
+                            </div>
                             <div class="text-right flex-shrink-0">
-                                <span class="text-slate-400 text-xs mr-2">×${item.qty}</span>
-                                <span class="text-slate-900">${this.escapeHTML(res.currency === 'JPY' ? '¥' : res.currency)} ${(item.price || 0).toLocaleString()}</span>
+                                <div class="text-slate-900 font-bold">${this.escapeHTML(res.originalCurrency === 'JPY' ? '¥' : res.originalCurrency)} ${(item.price || 0).toLocaleString()}</div>
+                                <div class="text-slate-400 text-[10px]">×${item.qty}</div>
                             </div>
                         </div>
                     `).join('') : '<div class="text-xs text-slate-400 italic px-1">無明細項目</div>'}
@@ -597,14 +619,16 @@ export const UIBridge = {
 
         container.innerHTML = `
             <div class="text-center mb-4">
+                 ${order.storeName ? `<h4 class="text-xl font-bold mb-2">${this.escapeHTML(order.storeName)}</h4>` : ''}
                  <p class="text-sm text-white/60">訂單ID: ${order.id}</p>
                  <p class="text-sm text-white/60">${new Date(order.timestamp).toLocaleString()}</p>
             </div>
             ${order.items.map(item => `
                 <div class="flex justify-between items-center text-lg py-3 border-b border-white/10 last:border-0">
                     <div>
-                        <span class="font-bold">${this.escapeHTML(item.nameTranslated)}</span>
+                        <span class="font-bold">${this.escapeHTML(item.nameTranslated || item.name)}</span>
                         <span class="text-white/60 text-sm ml-2">x ${item.qty}</span>
+                        <div class="text-white/40 text-[10px]">${this.escapeHTML(item.nameOriginal || '')}</div>
                     </div>
                     <div class="font-bold">¥${(item.price * item.qty).toLocaleString()}</div>
                 </div>

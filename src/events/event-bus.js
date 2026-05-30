@@ -283,18 +283,46 @@ export const EventBus = {
 
                 let account = appState.financeModule.accounts.find(a => a.id === selectedId);
                 if (!account) {
-                    account = FinanceService.addAccount('未命名帳本', receipt.currency || appState.settings.currency, 'personal');
+                    account = FinanceService.addAccount('未命名帳本', receipt.originalCurrency || appState.settings.currency, 'personal');
                 }
 
-                FinanceService.addTransaction(account.id, {
+                // Calculate the saved amount and currency based on account currency
+                let saveAmount = receipt.originalAmount || 0;
+                let saveCurrency = receipt.originalCurrency || 'JPY';
+
+                // Try live conversion first
+                const liveConverted = RateService.convert(receipt.originalAmount, receipt.originalCurrency, account.currency);
+                if (liveConverted !== null) {
+                    saveAmount = liveConverted;
+                    saveCurrency = account.currency;
+                } 
+                // Fallback to receipt's pre-calculated conversion if it matches account currency
+                else if (receipt.convertedAmount !== null && receipt.convertedCurrency === account.currency) {
+                    saveAmount = receipt.convertedAmount;
+                    saveCurrency = receipt.convertedCurrency;
+                }
+
+                const transaction = {
                     type: 'expense',
-                    title: receipt.storeName || '收據記錄',
-                    amount: receipt.totalAmount || 0,
-                    currency: receipt.currency || 'JPY',
+                    title: receipt.translatedStoreName || receipt.storeName || '收據記錄',
+                    amount: saveAmount,
+                    currency: saveCurrency,
                     date: receipt.date || new Date().toISOString(),
                     items: receipt.items || [],
-                    source: 'receipt-scan'
-                });
+                    source: 'receipt-scan',
+                    // Extra fields for traceability
+                    originalAmount: receipt.originalAmount,
+                    originalCurrency: receipt.originalCurrency,
+                    convertedAmount: receipt.convertedAmount,
+                    convertedCurrency: receipt.convertedCurrency,
+                    rawText: receipt.rawText
+                };
+
+                if (receipt.paymentMethod) {
+                    transaction.paymentMethod = receipt.paymentMethod;
+                }
+
+                FinanceService.addTransaction(account.id, transaction);
 
                 UIBridge.notify('收據已儲存至帳本', 'success');
                 this.dispatch('navigate', 'finance');
@@ -315,7 +343,10 @@ export const EventBus = {
         
         // Scanner
         document.getElementById('start-btn').onclick = () => this.dispatch('start-scan', { mode: 'menu' });
-        document.getElementById('upload-landing-btn').onclick = () => document.getElementById('file-input').click();
+        document.getElementById('upload-landing-btn').onclick = () => {
+            appState.scannerMode = 'menu';
+            document.getElementById('file-input').click();
+        };
         document.getElementById('scan-btn').onclick = () => this.dispatch('scan-capture');
         document.getElementById('upload-btn').onclick = () => document.getElementById('file-input').click();
         document.getElementById('error-upload-btn').onclick = () => document.getElementById('file-input').click();

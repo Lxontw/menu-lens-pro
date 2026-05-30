@@ -9,6 +9,35 @@ export const RateService = {
         return Storage.getCustomRate(currency);
     },
 
+    /**
+     * Convert amount between currencies
+     * @param {number} amount 
+     * @param {string} fromCurrency 
+     * @param {string} toCurrency 
+     * @returns {number|null}
+     */
+    convert(amount, fromCurrency, toCurrency) {
+        if (!amount && amount !== 0) return null;
+        if (fromCurrency === toCurrency) return amount;
+
+        // Base currency is JPY (rate = 1)
+        const getRate = (curr) => {
+            if (curr === 'JPY') return 1;
+            return Storage.getCustomRate(curr);
+        };
+
+        const fromRate = getRate(fromCurrency);
+        const toRate = getRate(toCurrency);
+
+        if (fromRate && toRate) {
+            // Formula: amount * (1/fromRate) * toRate  => amount * toRate / fromRate
+            // Note: Our custom rates are usually "1 JPY = ? TargetCurrency"
+            return (amount / fromRate) * toRate;
+        }
+
+        return null;
+    },
+
     async fetchLiveRate(currency) {
         try {
             // Using Open ER API (Free, currently stable)
