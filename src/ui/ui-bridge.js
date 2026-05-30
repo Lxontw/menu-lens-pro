@@ -45,6 +45,60 @@ export const UIBridge = {
                 if (activeBtn) activeBtn.classList.replace('text-slate-400', 'text-indigo-600');
             }
         }
+
+        // 特別處理：Landing View 時若購物車為空，隱藏 Panel
+        if (viewName === 'landing') {
+            this.updateOrderUI();
+        }
+    },
+
+    updateScannerUI(status = appState.scannerStatus) {
+        const titleEl = document.getElementById('scanner-mode-title');
+        const statusEl = document.getElementById('status-indicator');
+        const loadingEl = document.getElementById('camera-loading-text');
+        const errorEl = document.getElementById('camera-error-display');
+        const scanBtnInner = document.getElementById('scan-btn-inner');
+        const scanSpinner = document.getElementById('scan-spinner');
+        const scanBtn = document.getElementById('scan-btn');
+        const uploadBtn = document.getElementById('upload-btn');
+
+        if (titleEl) {
+            titleEl.innerText = appState.scannerMode === 'menu' ? '菜單辨識模式' : '收據辨識模式';
+        }
+
+        // 狀態對應文案
+        const statusMap = {
+            'idle': '準備中...',
+            'starting': '正在啟動相機...',
+            'ready': '請將菜單置於框內並對焦',
+            'analyzing': 'AI 正在辨識中，請稍候...',
+            'error': '發生錯誤'
+        };
+
+        if (statusEl) statusEl.innerText = statusMap[status] || statusMap.idle;
+        
+        if (loadingEl) {
+            status === 'starting' ? loadingEl.classList.remove('hidden') : loadingEl.classList.add('hidden');
+        }
+
+        if (errorEl) {
+            status === 'error' ? errorEl.classList.remove('hidden') : errorEl.classList.add('hidden');
+        }
+
+        // 按鈕可用性與動畫
+        if (status === 'analyzing') {
+            scanBtnInner?.classList.add('opacity-0', 'scale-50');
+            scanSpinner?.classList.remove('hidden');
+            scanBtn.disabled = true;
+            uploadBtn.disabled = true;
+            uploadBtn.classList.add('opacity-50');
+        } else {
+            scanBtnInner?.classList.remove('opacity-0', 'scale-50');
+            scanSpinner?.classList.add('hidden');
+            scanBtn.disabled = false;
+            uploadBtn.disabled = false;
+            uploadBtn.classList.remove('opacity-50');
+        }
     },
 
     notify(message, type = 'info') {
@@ -76,10 +130,15 @@ export const UIBridge = {
 
     toggleDrawer(open) {
         const drawer = document.getElementById('settings-drawer');
+        const onboardingTip = document.getElementById('api-onboarding-tip');
         if (drawer) {
             if (open) {
                 drawer.classList.replace('drawer-closed', 'drawer-open');
                 this.updateSettingsUI(true); // 開啟時同步狀態
+                
+                if (onboardingTip) {
+                    !appState.settings.apiKey ? onboardingTip.classList.remove('hidden') : onboardingTip.classList.add('hidden');
+                }
             } else {
                 drawer.classList.replace('drawer-open', 'drawer-closed');
             }
@@ -134,7 +193,16 @@ export const UIBridge = {
                 <i class="fas fa-search text-3xl mb-4 opacity-20"></i><br>
                 目前沒有翻譯結果
             </div>`;
+            if (targetId === 'results-list') {
+                const summaryEl = document.getElementById('results-summary');
+                if (summaryEl) summaryEl.innerText = '0 項目';
+            }
             return;
+        }
+
+        if (targetId === 'results-list') {
+            const summaryEl = document.getElementById('results-summary');
+            if (summaryEl) summaryEl.innerText = `${items.length} 項目`;
         }
 
         const rate = RateService.getExchangeRate(appState.settings.currency);
@@ -149,24 +217,24 @@ export const UIBridge = {
                     <div class="flex justify-between items-start">
                         <div class="flex-1 pr-4">
                             <h4 class="text-lg font-bold text-slate-900 mb-1">${this.escapeHTML(item.nameTranslated)}</h4>
-                            <p class="text-base font-medium text-slate-400 mb-2">${this.escapeHTML(item.nameOriginal)}</p>
-                            ${item.description ? `<p class="text-xs text-slate-500 leading-relaxed">${this.escapeHTML(item.description)}</p>` : ''}
+                            <p class="text-sm font-medium text-slate-400 mb-2">${this.escapeHTML(item.nameOriginal)}</p>
+                            ${item.description ? `<p class="text-[11px] text-slate-500 leading-relaxed">${this.escapeHTML(item.description)}</p>` : ''}
                         </div>
                         <div class="text-right flex-shrink-0">
                             <div class="text-xl font-bold text-indigo-600">¥${item.price.toLocaleString()}</div>
-                            <div class="text-xs font-bold text-slate-400 mt-1">${RateService.format(item.price, appState.settings.currency, rate)}</div>
+                            <div class="text-[10px] font-bold text-slate-400 mt-1">${RateService.format(item.price, appState.settings.currency, rate)}</div>
                         </div>
                     </div>
 
                     <div class="flex flex-wrap gap-2">
                         ${(item.dietary_tags || []).map(tag => `
-                            <span class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold">${this.escapeHTML(tag)}</span>
+                            <span class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold">${this.escapeHTML(tag)}</span>
                         `).join('')}
                     </div>
 
                     ${item.allergen_warning ? `
-                        <div class="bg-rose-50 text-rose-600 p-3 rounded-2xl flex items-center gap-3 text-xs font-bold">
-                            <i class="fas fa-exclamation-circle text-base"></i>
+                        <div class="bg-rose-50 text-rose-600 p-3 rounded-2xl flex items-center gap-3 text-[10px] font-bold">
+                            <i class="fas fa-exclamation-circle text-sm"></i>
                             <span>${this.escapeHTML(item.allergen_warning)}</span>
                         </div>
                     ` : ''}
@@ -174,11 +242,11 @@ export const UIBridge = {
                     <div class="flex gap-3">
                         <button onclick="EventBus.toggleFavorite(${index}, '${targetId}')" 
                                 class="w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-50 ${isFav ? 'text-amber-500' : 'text-slate-300'} active:scale-90 transition-all">
-                            <i class="fas fa-star text-xl"></i>
+                            <i class="fas fa-star text-lg"></i>
                         </button>
                         <button onclick="EventBus.addOrderItem(${index}, '${targetId}')" 
-                                class="flex-1 h-12 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all">
-                            ${qty > 0 ? `已加入清單 (×${qty})` : '加入點餐清單'}
+                                class="flex-1 h-12 ${qty > 0 ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-slate-900 text-white'} rounded-2xl font-bold text-xs active:scale-95 transition-all">
+                            ${qty > 0 ? `已加入點餐單 (×${qty})` : '加入點餐單'}
                         </button>
                     </div>
                 </div>
@@ -198,7 +266,8 @@ export const UIBridge = {
         const totalJPYVal = appState.order.reduce((s, i) => s + (i.price * i.qty), 0);
         const rate = RateService.getExchangeRate(appState.settings.currency);
 
-        if (totalItems === 0) {
+        // Landing view 且購物車為空時，完全隱藏 panel
+        if (totalItems === 0 || (appState.currentView === 'landing' && totalItems === 0)) {
             panel.classList.add('translate-y-full');
             return;
         }

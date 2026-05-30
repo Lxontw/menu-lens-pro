@@ -12,6 +12,8 @@ export const appState = {
         customRate: 0 // Will be populated by UIBridge or RateService when needed
     },
     currentView: 'landing',
+    scannerStatus: 'idle', // 'idle' | 'starting' | 'ready' | 'analyzing' | 'error'
+    lastScanSource: null, // 'camera' | 'upload'
     scannerMode: 'menu', // 'menu' or 'receipt'
     stream: null,
     results: Storage.getJSON('menulens_last_results'),

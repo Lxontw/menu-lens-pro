@@ -34,50 +34,98 @@
             
             <!-- 1. Landing Page View (歡迎介面) -->
             <section id="landing-view" class="absolute inset-0 z-30 flex flex-col items-center justify-center p-8 bg-white view-transition">
-                <div class="mb-8 text-center">
+                <div class="mb-10 text-center">
                     <div class="w-24 h-24 bg-indigo-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                         <i class="fas fa-camera-retro text-4xl text-indigo-600"></i>
                     </div>
-                    <h2 class="text-3xl font-bold mb-2">探索異國美味</h2>
-                    <p class="text-slate-500 leading-relaxed">即時掃描日本菜單，為您翻譯中文、換算匯率並標註飲食偏好。</p>
+                    <h2 class="text-3xl font-bold mb-3">探索異國美味</h2>
+                    <p class="text-slate-500 leading-relaxed mb-6">智慧菜單翻譯工具</p>
+                    <div class="grid grid-cols-2 gap-4 text-left">
+                        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                            <i class="fas fa-language text-indigo-600 mb-2"></i>
+                            <div class="text-xs font-bold">日語翻譯</div>
+                            <div class="text-[10px] text-slate-400">精準辨識翻譯</div>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                            <i class="fas fa-layer-group text-indigo-600 mb-2"></i>
+                            <div class="text-xs font-bold">連續掃描</div>
+                            <div class="text-[10px] text-slate-400">支援多頁菜單</div>
+                        </div>
+                    </div>
                 </div>
-                <button id="start-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-indigo-200 active:scale-95 transition-transform">
-                    開啟掃描器
-                </button>
+                <div class="w-full space-y-4">
+                    <button id="start-btn" class="w-full py-5 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-indigo-200 active:scale-95 transition-transform flex items-center justify-center gap-3">
+                        <i class="fas fa-camera"></i> 立即拍照辨識
+                    </button>
+                    <button id="upload-landing-btn" class="w-full py-4 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-bold text-base active:scale-95 transition-transform flex items-center justify-center gap-3">
+                        <i class="fas fa-image"></i> 上傳菜單照片
+                    </button>
+                </div>
             </section>
 
             <!-- 2. Scanner Interface View (掃描器介面) -->
             <section id="scanner-view" class="absolute inset-0 z-20 flex flex-col bg-black hidden view-transition">
                 <!-- Scanner Top Bar -->
-                <div class="absolute top-0 left-0 right-0 z-30 p-4 flex justify-between items-center pointer-events-none">
-                    <button id="scanner-close-btn" class="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md pointer-events-auto">
+                <div class="absolute top-0 left-0 right-0 z-30 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
+                    <button id="scanner-close-btn" class="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md">
                         <i class="fas fa-times"></i>
                     </button>
-                    <div></div>
+                    <div id="scanner-mode-title" class="text-white font-bold text-sm tracking-widest uppercase">菜單辨識模式</div>
+                    <div class="w-10"></div>
                 </div>
 
                 <!-- Camera Preview Area -->
                 <div id="camera-preview" class="flex-1 relative overflow-hidden bg-slate-900 flex items-center justify-center">
+                    <!-- Guide Frame Overlay -->
+                    <div class="absolute inset-0 pointer-events-none flex items-center justify-center p-8">
+                        <div class="w-full h-3/4 border-2 border-white/30 rounded-3xl relative">
+                            <div class="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-indigo-500 rounded-tl-lg"></div>
+                            <div class="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-indigo-500 rounded-tr-lg"></div>
+                            <div class="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-lg"></div>
+                            <div class="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-lg"></div>
+                        </div>
+                    </div>
+                    
                     <!-- Scanning Animation Overlay -->
                     <div id="scan-line" class="absolute top-0 left-0 w-full h-1 bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.8)] opacity-0"></div>
-                    <p class="text-white/50 text-sm">正在等待相機權限...</p>
+                    
+                    <div id="camera-error-display" class="hidden p-8 text-center text-white space-y-4 z-40">
+                        <i class="fas fa-exclamation-triangle text-4xl text-amber-400"></i>
+                        <h4 class="text-lg font-bold">相機啟動失敗</h4>
+                        <p class="text-white/60 text-sm leading-relaxed">可能是未授權相機權限或裝置不支援。您可以改用照片上傳進行辨識。</p>
+                        <button id="error-upload-btn" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform">
+                            從相簿選擇照片
+                        </button>
+                    </div>
+                    
+                    <p id="camera-loading-text" class="text-white/50 text-sm">正在啟動相機...</p>
                 </div>
 
                 <!-- Scanner Controls -->
-                <div class="p-8 bg-slate-900 flex flex-col items-center gap-6 safe-bottom">
+                <div class="p-8 bg-black flex flex-col items-center gap-6 safe-bottom">
                     <input type="file" id="file-input" accept="image/*" class="hidden">
-                    <div id="status-indicator" class="text-indigo-400 text-sm font-medium animate-pulse">
-                        請將菜單置於框內
+                    <div id="status-indicator" class="text-white/70 text-sm font-medium">
+                        請將菜單置於框內並對焦
                     </div>
                     <div class="flex items-center justify-between w-full">
-                        <button id="upload-btn" class="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white">
-                            <i class="fas fa-image text-xl"></i>
+                        <button id="upload-btn" class="w-14 h-14 flex flex-col items-center justify-center rounded-2xl bg-white/10 text-white active:scale-90 transition-all">
+                            <i class="fas fa-image text-xl mb-1"></i>
+                            <span class="text-[9px] font-bold opacity-60 uppercase">上傳</span>
                         </button>
-                        <button id="scan-btn" class="w-20 h-20 rounded-full border-4 border-white/30 flex items-center justify-center">
-                            <div class="w-16 h-16 rounded-full bg-white shadow-lg active:scale-90 transition-transform"></div>
-                        </button>
-                        <button id="gallery-btn" class="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white">
-                            <i class="fas fa-history text-xl"></i>
+                        
+                        <div class="relative">
+                            <button id="scan-btn" class="w-20 h-20 rounded-full border-4 border-white/20 flex items-center justify-center p-1 overflow-hidden">
+                                <div id="scan-btn-inner" class="w-full h-full rounded-full bg-white shadow-lg active:scale-90 transition-transform"></div>
+                            </button>
+                            <!-- Spinner overlay (hidden by default) -->
+                            <div id="scan-spinner" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden">
+                                <i class="fas fa-circle-notch fa-spin text-indigo-600 text-3xl"></i>
+                            </div>
+                        </div>
+
+                        <button id="scanner-help-btn" class="w-14 h-14 flex flex-col items-center justify-center rounded-2xl bg-white/10 text-white active:scale-90 transition-all">
+                            <i class="fas fa-question-circle text-xl mb-1"></i>
+                            <span class="text-[9px] font-bold opacity-60 uppercase">說明</span>
                         </button>
                     </div>
                 </div>
@@ -85,9 +133,21 @@
 
             <!-- 3. Result Gallery View (結果展示區) -->
             <section id="results-view" class="absolute inset-0 z-10 flex flex-col bg-slate-50 hidden view-transition overflow-y-auto p-4 pb-40">
-                <div class="flex items-center justify-between mb-4 px-2">
-                    <h3 class="font-bold text-lg">翻譯結果</h3>
-                    <button id="rescan-btn" class="text-indigo-600 text-sm font-medium">重新掃描</button>
+                <div class="mb-4 px-2">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-bold text-lg">本次掃描結果</h3>
+                        <div id="results-summary" class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full uppercase tracking-widest">
+                            0 項目
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="append-scan-btn" class="flex-1 py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                            <i class="fas fa-plus-circle"></i> 繼續掃下一頁
+                        </button>
+                        <button id="new-scan-btn" class="flex-1 py-3 bg-white text-slate-400 border border-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                            <i class="fas fa-redo"></i> 開始新掃描
+                        </button>
+                    </div>
                 </div>
                 
                 <div id="results-list" class="space-y-4"></div>
@@ -111,7 +171,7 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            <button id="generate-menu-btn" class="px-2 py-0.5 text-[10px] bg-white/20 hover:bg-white/30 rounded border border-white/30 transition-colors">生成菜單</button>
+                            <button id="generate-menu-btn" class="px-2 py-0.5 text-[10px] bg-white/20 hover:bg-white/30 rounded border border-white/30 transition-colors">確認點餐</button>
                             <span id="cart-total-converted" class="text-sm font-medium bg-white/20 px-2 py-1 rounded-lg">NT$ 0</span>
                             <i id="cart-chevron" class="fas fa-chevron-up transition-transform duration-300"></i>
                         </div>
@@ -278,6 +338,15 @@
                 </div>
 
                 <div class="space-y-6 flex-1 overflow-y-auto">
+                    <!-- Onboarding Tip -->
+                    <div id="api-onboarding-tip" class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex gap-3 hidden">
+                        <i class="fas fa-magic text-indigo-600 mt-1"></i>
+                        <div class="text-xs text-indigo-900 leading-relaxed">
+                            <span class="font-bold">最後一小步！</span><br>
+                            貼上您的 Gemini API 金鑰即可開始辨識。這讓您能享有完全私密且免費的 AI 翻譯服務。
+                        </div>
+                    </div>
+
                     <!-- API 金鑰 -->
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">

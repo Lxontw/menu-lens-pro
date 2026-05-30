@@ -27,40 +27,54 @@ export const EventBus = {
     },
 
     bindCoreEvents() {
-        document.getElementById('start-btn').onclick = () => {
+        const startScan = (mode = 'menu') => {
             if (!appState.settings.apiKey) {
                 UIBridge.notify('請先設定 API 金鑰', 'warn');
                 UIBridge.toggleDrawer(true);
                 return;
             }
-            appState.scannerMode = 'menu';
+            appState.scannerMode = mode;
             appState.currentView = 'scanner';
             UIBridge.switchView('scanner');
             DeviceUtils.startCamera();
         };
 
+        document.getElementById('start-btn').onclick = () => startScan('menu');
+        
+        document.getElementById('upload-landing-btn').onclick = () => {
+            appState.scannerMode = 'menu';
+            document.getElementById('file-input').click();
+        };
+
         document.getElementById('scan-btn').onclick = async () => {
+            if (appState.scannerStatus === 'analyzing') return;
             const base64 = DeviceUtils.captureFrame();
-            if (base64) this.handleScan(base64);
+            if (base64) {
+                appState.lastScanSource = 'camera';
+                this.handleScan(base64);
+            }
         };
 
         document.getElementById('upload-btn').onclick = () => {
+            if (appState.scannerStatus === 'analyzing') return;
+            document.getElementById('file-input').click();
+        };
+        
+        document.getElementById('error-upload-btn').onclick = () => {
             document.getElementById('file-input').click();
         };
 
         document.getElementById('file-input').onchange = async (e) => {
             const file = e.target.files[0];
             if (file) {
+                appState.lastScanSource = 'upload';
                 const base64 = await DeviceUtils.processImageFile(file);
                 this.handleScan(base64);
             }
         };
 
-        document.getElementById('rescan-btn').onclick = () => {
-            appState.scannerMode = 'menu';
-            appState.currentView = 'scanner';
-            UIBridge.switchView('scanner');
-            DeviceUtils.startCamera();
+        document.getElementById('scanner-help-btn').onclick = () => {
+            UIBridge.toggleHelpModal(true);
         };
 
         document.getElementById('scanner-close-btn').onclick = () => {
@@ -70,7 +84,6 @@ export const EventBus = {
                 appState.currentView = 'finance';
                 UIBridge.switchView('finance');
             } else {
-                // menu mode
                 if (appState.results && appState.results.length > 0) {
                     appState.currentView = 'results';
                     UIBridge.switchView('results');
@@ -80,14 +93,41 @@ export const EventBus = {
                 }
             }
         };
+        
+        this.bindResultsEvents();
+    },
+
+    bindResultsEvents() {
+        document.getElementById('append-scan-btn').onclick = () => {
+            appState.scannerMode = 'menu';
+            appState.currentView = 'scanner';
+            UIBridge.switchView('scanner');
+            DeviceUtils.startCamera();
+        };
+
+        document.getElementById('new-scan-btn').onclick = () => {
+            if (confirm('確定要開始新的掃描任務？這將清空目前的辨識結果。')) {
+                appState.results = [];
+                Storage.saveLastResults();
+                appState.scannerMode = 'menu';
+                appState.currentView = 'scanner';
+                UIBridge.switchView('scanner');
+                DeviceUtils.startCamera();
+            }
+        };
     },
 
     async handleScan(base64) {
+        if (appState.scannerStatus === 'analyzing') return;
+        
         if (appState.scannerMode === 'receipt') {
             return await this.handleReceiptScan(base64);
         }
 
+        appState.scannerStatus = 'analyzing';
+        UIBridge.updateScannerUI();
         UIBridge.notify('正在分析菜單...', 'info');
+        
         const scanLine = document.getElementById('scan-line');
         if (scanLine) scanLine.style.opacity = '1';
 
@@ -106,11 +146,14 @@ export const EventBus = {
             UIBridge.switchView('results');
             UIBridge.renderResults();
             DeviceUtils.stopCamera();
+            appState.scannerStatus = 'idle';
         } catch (error) {
             console.error(error);
             UIBridge.notify(error.message, 'error');
+            appState.scannerStatus = 'ready'; // Allow retry
         } finally {
             if (scanLine) scanLine.style.opacity = '0';
+            UIBridge.updateScannerUI();
         }
     },
 
@@ -298,7 +341,10 @@ export const EventBus = {
     },
 
     async handleReceiptScan(base64) {
+        appState.scannerStatus = 'analyzing';
+        UIBridge.updateScannerUI();
         UIBridge.notify('正在辨識收據...', 'info');
+        
         const scanLine = document.getElementById('scan-line');
         if (scanLine) scanLine.style.opacity = '1';
 
@@ -308,6 +354,7 @@ export const EventBus = {
             UIBridge.switchView('receipt-result');
             UIBridge.renderReceiptResult();
             DeviceUtils.stopCamera();
+            appState.scannerStatus = 'idle';
         } catch (error) {
             console.error(error);
             UIBridge.notify(error.message || '收據辨識失敗', 'error');
@@ -316,8 +363,10 @@ export const EventBus = {
             appState.currentView = 'finance';
             UIBridge.switchView('finance');
             DeviceUtils.stopCamera();
+            appState.scannerStatus = 'idle';
         } finally {
             if (scanLine) scanLine.style.opacity = '0';
+            UIBridge.updateScannerUI();
         }
     },
 

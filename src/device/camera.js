@@ -10,6 +10,8 @@ export const DeviceUtils = {
 
         try {
             this.stopCamera(); // Ensure clean start
+            appState.scannerStatus = 'starting';
+            UIBridge.updateScannerUI();
             
             appState.stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -21,17 +23,19 @@ export const DeviceUtils = {
             video.setAttribute('playsinline', true);
             video.className = 'w-full h-full object-cover';
             
-            preview.innerHTML = '';
-            preview.appendChild(video);
+            // 保留 UI 上的 frame 和其他 overlay，只清空或插入 video
+            const existingVideo = preview.querySelector('video');
+            if (existingVideo) existingVideo.remove();
+            preview.prepend(video);
             video.play();
             
+            appState.scannerStatus = 'ready';
+            UIBridge.updateScannerUI();
             return true;
         } catch (error) {
             console.error('Camera Access Error:', error);
-            preview.innerHTML = `<div class="p-8 text-center text-white/50 text-sm">
-                <i class="fas fa-exclamation-triangle text-2xl mb-2"></i><br>
-                無法啟動相機。請確保已授權且使用 HTTPS。
-            </div>`;
+            appState.scannerStatus = 'error';
+            UIBridge.updateScannerUI();
             return false;
         }
     },
