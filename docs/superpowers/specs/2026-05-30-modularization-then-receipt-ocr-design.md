@@ -112,6 +112,16 @@ src/
 
 本機測試時，可以在專案根目錄開一個簡單 static server，再用手機連到同一網路下的電腦 IP 測試。
 
+GitHub 上傳與發布流程也要納入規格：
+
+1. 程式整理完成後，提交到 Git 本地 commit。
+2. 推送到 GitHub repository。
+3. 以 repository root 作為靜態網站來源，確認 `index.html` 位於根目錄，`src/` 以相對路徑載入。
+4. 在 GitHub Pages 啟用 `main` 或實際使用分支的部署。
+5. 部署完成後，用 GitHub Pages 網址在手機上驗證相機、上傳圖片、localStorage、帳本與收據流程。
+
+這代表模組化設計必須維持「直接以 repository 靜態檔案結構部署即可運作」，不能依賴 build 輸出目錄。
+
 ## 測試與驗證
 
 目前專案沒有 `package.json` 或測試框架，所以第一階段先用瀏覽器手動驗證：
@@ -137,6 +147,7 @@ src/
 8. 新增 receipt service 與收據結果狀態。
 9. 新增收據結果畫面與儲存到帳本流程。
 10. 先用模擬或範例 Gemini 回應驗證收據流程，再做真實 API 測試。
+11. 提交到 Git，推送 GitHub，啟用或更新 GitHub Pages，並用手機實機驗證。
 
 ## 不做的事
 
