@@ -91,13 +91,15 @@ export const ReceiptService = {
             const originalCurrency = result.currency || 'JPY';
             const targetCurrency = appState.settings.currency || 'TWD';
 
+            const convertedAmount = await RateService.convert(originalAmount, originalCurrency, targetCurrency);
+
             const normalized = {
                 storeName: result.storeName || '未知商店', // Legacy support
                 originalStoreName: result.storeName || '未知商店',
                 translatedStoreName: result.storeNameTranslated || result.storeName || '未知商店',
                 date: result.date || new Date().toISOString().split('T')[0],
                 originalAmount: originalAmount,
-                convertedAmount: RateService.convert(originalAmount, originalCurrency, targetCurrency),
+                convertedAmount: convertedAmount,
                 originalCurrency: originalCurrency,
                 convertedCurrency: targetCurrency,
                 totalAmount: originalAmount, // Keep for backward compatibility

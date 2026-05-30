@@ -5,8 +5,21 @@ import { Storage } from '../storage/local-storage.js';
  * Exchange Rate Service
  */
 export const RateService = {
-    getExchangeRate(currency) {
+    getStoredRate(currency) {
         return Storage.getCustomRate(currency);
+    },
+
+    async resolveRate(currency) {
+        if (currency === 'JPY') return 1;
+
+        const storedRate = this.getStoredRate(currency);
+        if (storedRate && storedRate > 0) {
+            return storedRate;
+        }
+
+        // If not found, fetch, persist, and return
+        const liveRate = await this.fetchLiveRate(currency, true);
+        return liveRate;
     },
 
     /**
@@ -14,31 +27,24 @@ export const RateService = {
      * @param {number} amount 
      * @param {string} fromCurrency 
      * @param {string} toCurrency 
-     * @returns {number|null}
+     * @returns {Promise<number|null>}
      */
-    convert(amount, fromCurrency, toCurrency) {
+    async convert(amount, fromCurrency, toCurrency) {
         if (!amount && amount !== 0) return null;
         if (fromCurrency === toCurrency) return amount;
 
-        // Base currency is JPY (rate = 1)
-        const getRate = (curr) => {
-            if (curr === 'JPY') return 1;
-            return Storage.getCustomRate(curr);
-        };
-
-        const fromRate = getRate(fromCurrency);
-        const toRate = getRate(toCurrency);
+        const fromRate = await this.resolveRate(fromCurrency);
+        const toRate = await this.resolveRate(toCurrency);
 
         if (fromRate && toRate) {
             // Formula: amount * (1/fromRate) * toRate  => amount * toRate / fromRate
-            // Note: Our custom rates are usually "1 JPY = ? TargetCurrency"
             return (amount / fromRate) * toRate;
         }
 
         return null;
     },
 
-    async fetchLiveRate(currency) {
+    async fetchLiveRate(currency, persist = false) {
         try {
             // Using Open ER API (Free, currently stable)
             const response = await fetch(`https://open.er-api.com/v6/latest/JPY`);
@@ -46,7 +52,12 @@ export const RateService = {
             const data = await response.json();
             
             if (data.result === 'success' && data.rates && data.rates[currency]) {
-                return data.rates[currency];
+                const rate = data.rates[currency];
+                if (persist) {
+                    Storage.saveCustomRate(currency, rate);
+                    appState.settings.customRate = rate;
+                }
+                return rate;
             }
             
             console.warn(`Rate for ${currency} not found in API response`);

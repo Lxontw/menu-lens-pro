@@ -163,10 +163,12 @@ export const EventBus = {
             'fetch-live-rate': async () => {
                 UIBridge.notify('正在獲取最新匯率...', 'info');
                 const currentCurrency = document.getElementById('currency-select').value;
-                const rate = await RateService.fetchLiveRate(currentCurrency);
+                const rate = await RateService.fetchLiveRate(currentCurrency, true);
                 if (rate) {
+                    appState.settings.customRate = rate;
                     document.getElementById('rate-input').value = rate.toFixed(4);
-                    UIBridge.notify('匯率已更新', 'success');
+                    Storage.saveSettings();
+                    UIBridge.notify('匯率已更新並已儲存', 'success');
                 } else {
                     UIBridge.notify('匯率獲取失敗', 'error');
                 }
@@ -276,7 +278,7 @@ export const EventBus = {
                 Storage.saveCurrentAccount();
                 UIBridge.renderAccounts();
             },
-            'save-receipt-to-account': () => {
+            'save-receipt-to-account': async () => {
                 const receipt = appState.receiptResult;
                 const selectedId = document.getElementById('save-to-account-select')?.value;
                 if (!receipt) return UIBridge.notify('沒有可儲存的收據內容', 'warn');
@@ -286,20 +288,20 @@ export const EventBus = {
                     account = FinanceService.addAccount('未命名帳本', receipt.originalCurrency || appState.settings.currency, 'personal');
                 }
 
-                // Calculate the saved amount and currency based on account currency
-                let saveAmount = receipt.originalAmount || 0;
-                let saveCurrency = receipt.originalCurrency || 'JPY';
+                const targetCurrency = account.currency || appState.settings.currency || 'TWD';
+                const originalCurrency = receipt.originalCurrency || 'JPY';
+                const originalAmount = receipt.originalAmount || 0;
+                let saveAmount = originalAmount;
+                let saveCurrency = originalCurrency;
 
-                // Try live conversion first
-                const liveConverted = RateService.convert(receipt.originalAmount, receipt.originalCurrency, account.currency);
-                if (liveConverted !== null) {
-                    saveAmount = liveConverted;
-                    saveCurrency = account.currency;
-                } 
-                // Fallback to receipt's pre-calculated conversion if it matches account currency
-                else if (receipt.convertedAmount !== null && receipt.convertedCurrency === account.currency) {
-                    saveAmount = receipt.convertedAmount;
-                    saveCurrency = receipt.convertedCurrency;
+                if (originalCurrency !== targetCurrency) {
+                    const converted = await RateService.convert(originalAmount, originalCurrency, targetCurrency);
+                    if (converted === null) {
+                        UIBridge.notify('匯率取得失敗，請先設定匯率或稍後再試', 'error');
+                        return;
+                    }
+                    saveAmount = converted;
+                    saveCurrency = targetCurrency;
                 }
 
                 const transaction = {
@@ -310,7 +312,6 @@ export const EventBus = {
                     date: receipt.date || new Date().toISOString(),
                     items: receipt.items || [],
                     source: 'receipt-scan',
-                    // Extra fields for traceability
                     originalAmount: receipt.originalAmount,
                     originalCurrency: receipt.originalCurrency,
                     convertedAmount: receipt.convertedAmount,

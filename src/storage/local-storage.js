@@ -88,5 +88,11 @@ export const Storage = {
 
     getCustomRate(currency) {
         return parseFloat(localStorage.getItem(`menulens_rate_${currency}`)) || 0;
+    },
+
+    saveCustomRate(currency, rate) {
+        if (currency && rate > 0) {
+            localStorage.setItem(`menulens_rate_${currency}`, rate);
+        }
     }
 };
