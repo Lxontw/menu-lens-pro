@@ -1,31 +1,31 @@
-# MenuLens Pro Modularization Then Receipt OCR Design
+# MenuLens Pro 模組化與收據 OCR 設計規格
 
-## Goal
+## 目標
 
-Refactor MenuLens Pro from a single large `logic.js` file into a small ES Modules architecture that remains deployable as a pure static mobile web app, then add receipt OCR and account-book recording on top of that structure.
+先把 MenuLens Pro 從單一大型 `logic.js` 重構成小型 ES Modules 架構，並保持它仍然是純靜態、適合手機使用的 Web App。完成模組化後，再在這個架構上加入「收據 OCR」與「帳本紀錄」功能。
 
-The app must keep working well on mobile browsers. The expected production path is GitHub Pages or another HTTPS static host, because camera access is more reliable on HTTPS than when opening `index.html` through `file://`.
+手機使用是主要需求。正式使用時建議部署到 GitHub Pages 或其他 HTTPS 靜態網站，因為手機瀏覽器通常要求 HTTPS 才能穩定使用相機。直接用 `file://` 打開 `index.html` 不適合作為主要使用方式。
 
-## Current State
+## 目前狀態
 
-- `index.html` is the main app shell and loads `logic.js`.
-- `logic.js` contains global state, finance logic, life tools logic, UI rendering, Gemini API calls, camera helpers, and event binding in one file.
-- The code has conceptual layers: `appState`, `CoreLogic`, `UIBridge`, `DeviceUtils`, and `EventBus`.
-- `index.html` currently has duplicated trailing markup after `</html>`.
-- `logic.js` references `finance-view` and `life-tools-view`, but the current main `index.html` does not define those sections.
-- `index-beta.html` contains more complete finance and life tools markup, but it is not the main entry and includes inline behavior.
+- `index.html` 是主畫面，現在載入的是 `logic.js`。
+- `logic.js` 同時放了全域狀態、帳本邏輯、生活工具邏輯、UI 渲染、Gemini API 呼叫、相機工具、事件綁定。
+- 程式已經有概念上的分層：`appState`、`CoreLogic`、`UIBridge`、`DeviceUtils`、`EventBus`。
+- `index.html` 目前在第一個 `</html>` 後面還有重複殘留的 HTML。
+- `logic.js` 會操作 `finance-view` 和 `life-tools-view`，但目前主版 `index.html` 沒有這兩個 section。
+- `index-beta.html` 有比較完整的帳本與生活工具畫面，但它不是目前主入口，而且裡面有額外 inline script，不適合直接當成最終架構。
 
-## Architecture
+## 架構方向
 
-Use ES Modules without introducing a build step.
+使用 ES Modules，不導入打包工具。
 
-`index.html` will load:
+`index.html` 改成載入：
 
 ```html
 <script type="module" src="./src/main.js"></script>
 ```
 
-Proposed module layout:
+預計檔案結構：
 
 ```text
 src/
@@ -42,105 +42,106 @@ src/
   events/event-bus.js
 ```
 
-Responsibilities:
+各檔責任：
 
-- `main.js`: startup sequence, initial render, event bus initialization.
-- `state/app-state.js`: single app state object and state initialization from localStorage.
-- `storage/local-storage.js`: localStorage key names, JSON read/write helpers, fallback handling.
-- `core/menu-service.js`: Gemini menu analysis and menu result normalization.
-- `core/rate-service.js`: exchange-rate lookup, fallback rates, currency formatting helpers where appropriate.
-- `core/finance-service.js`: account creation, account persistence, transaction insertion, account deletion.
-- `core/life-tools-service.js`: memo encoding/decoding, unit conversion, life tools data.
-- `core/receipt-service.js`: Gemini receipt OCR, receipt JSON parsing, receipt normalization.
-- `device/camera.js`: camera startup, shutdown, frame capture, file-to-base64 conversion.
-- `ui/ui-bridge.js`: DOM rendering and view switching only.
-- `events/event-bus.js`: event handlers and orchestration between UI, state, services, and device helpers.
+- `main.js`：App 啟動流程、初始畫面渲染、初始化事件。
+- `state/app-state.js`：建立單一 `appState`，並從 localStorage 載入初始狀態。
+- `storage/local-storage.js`：集中管理 localStorage key、JSON 讀寫、錯誤 fallback。
+- `core/menu-service.js`：Gemini 菜單辨識、菜單結果整理。
+- `core/rate-service.js`：匯率取得、預設匯率、貨幣格式化相關工具。
+- `core/finance-service.js`：新增帳本、儲存帳本、加入交易項目、刪除帳本。
+- `core/life-tools-service.js`：備忘錄編碼/解碼、單位換算、生活工具資料。
+- `core/receipt-service.js`：Gemini 收據 OCR、JSON 解析、收據資料正規化。
+- `device/camera.js`：啟動相機、停止相機、擷取畫面、圖片轉 base64。
+- `ui/ui-bridge.js`：只負責 DOM 更新、畫面切換、各區塊 render。
+- `events/event-bus.js`：綁定事件，串接 UI、狀態、核心服務與相機工具。
 
-## Data Flow
+## 資料流程
 
-Menu scan flow:
+菜單掃描流程：
 
-1. User opens scanner or uploads an image.
-2. `event-bus.js` gets base64 image data from `camera.js`.
-3. `menu-service.js` calls Gemini and returns normalized menu items.
-4. `event-bus.js` updates `appState.results` and persists menu cache.
-5. `ui-bridge.js` renders results and order UI.
+1. 使用者開啟掃描器或上傳圖片。
+2. `event-bus.js` 從 `camera.js` 取得 base64 圖片。
+3. `menu-service.js` 呼叫 Gemini，回傳整理後的菜單項目。
+4. `event-bus.js` 更新 `appState.results`，並把結果存進 localStorage。
+5. `ui-bridge.js` 渲染翻譯結果與點餐清單。
 
-Receipt scan flow:
+收據掃描流程：
 
-1. User chooses receipt mode or opens receipt scan from the finance view.
-2. `event-bus.js` gets base64 image data from `camera.js`.
-3. `receipt-service.js` calls Gemini OCR and returns normalized receipt data.
-4. `ui-bridge.js` renders a receipt result view.
-5. User saves the receipt to an account.
-6. `finance-service.js` converts receipt items into account transactions and persists them.
-7. `ui-bridge.js` re-renders account summaries.
+1. 使用者從帳本畫面選擇收據掃描模式。
+2. `event-bus.js` 從 `camera.js` 取得 base64 圖片。
+3. `receipt-service.js` 呼叫 Gemini OCR，回傳整理後的收據資料。
+4. `ui-bridge.js` 顯示收據辨識結果畫面。
+5. 使用者確認後，選擇要儲存到哪個帳本。
+6. `finance-service.js` 把收據項目轉成帳本交易紀錄並儲存。
+7. `ui-bridge.js` 重新渲染帳本摘要。
 
-## UI Scope
+## UI 範圍
 
-The first refactor should preserve the existing UI as much as possible.
+第一階段模組化時，盡量保留目前 UI，不做視覺重設計。
 
-Required cleanup during modularization:
+模組化時必須順手修正：
 
-- Remove duplicated trailing HTML after the first `</html>`.
-- Add `finance-view` and `life-tools-view` containers to the main `index.html`, based on the existing `index-beta.html` structure but adapted to current Font Awesome styling.
-- Keep the current bottom navigation and existing IDs so behavior remains compatible.
+- 移除 `index.html` 第一個 `</html>` 之後的重複殘留內容。
+- 在主版 `index.html` 補上 `finance-view` 和 `life-tools-view`。
+- 這兩個畫面可以參考 `index-beta.html`，但要改成符合目前主版使用的 Font Awesome 樣式。
+- 保留目前 bottom navigation 和既有 DOM id，避免重構時破壞現有事件綁定。
 
-Receipt OCR UI added after modularization:
+收據 OCR 第二階段新增：
 
-- Add a scan mode entry from the finance view.
-- Add `receipt-result-view` for store name, date, total, currency, line items, and save/cancel controls.
-- Add a save flow that stores receipt data into a selected account.
+- 在帳本畫面加入收據掃描入口。
+- 新增 `receipt-result-view`，顯示店家、日期、總金額、幣別、項目清單、儲存/取消按鈕。
+- 新增「儲存到帳本」流程，讓收據資料可以進入指定帳本。
 
-## Error Handling
+## 錯誤處理
 
-- Missing Gemini API key should show the existing settings prompt behavior.
-- Gemini response parsing should tolerate fenced JSON and surrounding text.
-- Invalid OCR result should show a clear UI notification and keep the user on the scan/result flow.
-- localStorage parse errors should fall back to defaults instead of crashing startup.
-- Camera failures should continue using the existing notification pattern and allow image upload as fallback.
+- 沒有 Gemini API Key 時，沿用目前開啟設定提醒的行為。
+- Gemini 回傳內容可能包在 markdown code block 或含有多餘文字，解析時要能容錯。
+- 收據 OCR 結果無效時，要顯示清楚通知，並讓使用者可以重新掃描或上傳圖片。
+- localStorage JSON 壞掉時，不應讓 App 啟動失敗，要 fallback 到預設值。
+- 相機啟動失敗時，維持目前通知方式，並保留圖片上傳作為替代入口。
 
-## Mobile Deployment
+## 手機部署方式
 
-The app remains a static site:
+此專案維持純靜態網站：
 
-- No Node runtime required in production.
-- No bundler required.
-- Deployable to GitHub Pages.
-- Camera use should be tested on HTTPS, not only `file://`.
+- 正式使用不需要 Node runtime。
+- 不需要 Vite、Webpack 或其他打包流程。
+- 可以部署到 GitHub Pages。
+- 相機功能應該在 HTTPS 網址上測試，不只用 `file://` 測。
 
-For local testing, use a simple static server from the project root and open the served URL on a phone if the device can reach the host machine.
+本機測試時，可以在專案根目錄開一個簡單 static server，再用手機連到同一網路下的電腦 IP 測試。
 
-## Testing And Verification
+## 測試與驗證
 
-Because the project currently has no package or test runner, the first verification layer is manual/browser-based:
+目前專案沒有 `package.json` 或測試框架，所以第一階段先用瀏覽器手動驗證：
 
-- Open the static app through a local server.
-- Confirm startup does not throw console errors.
-- Confirm settings drawer opens and saves.
-- Confirm upload flow still calls menu analysis when an API key is present.
-- Confirm results, order list, favorites, generated order menu, finance tab, and life tools tab render.
-- Confirm localStorage-backed data survives reload.
+- 用 local static server 打開 App。
+- 確認啟動時 console 沒有錯誤。
+- 確認設定抽屜可以開啟與儲存。
+- 確認有 API Key 時，圖片上傳流程仍會執行菜單辨識。
+- 確認翻譯結果、點餐清單、收藏、生成菜單、帳本 tab、生活工具 tab 都能顯示。
+- 確認 localStorage 資料重新整理後仍存在。
 
-After the module split stabilizes, add a lightweight test setup only if needed for receipt parsing and storage behavior. Receipt OCR logic should be written so JSON normalization can be tested without calling Gemini.
+模組拆分穩定後，如果收據解析與儲存邏輯需要更穩，可以再加輕量測試。收據 OCR 的資料整理邏輯要寫成可單獨測試，不必真的呼叫 Gemini。
 
-## Implementation Order
+## 實作順序
 
-1. Clean `index.html` structure and restore missing finance/life views.
-2. Create `src/` module folders and move state/storage helpers first.
-3. Move pure services: rate, finance, life tools, menu.
-4. Move camera helpers.
-5. Move UI bridge.
-6. Move event bus and wire imports through `main.js`.
-7. Verify existing behavior before adding receipt OCR.
-8. Add receipt service and receipt result state.
-9. Add receipt result view and save-to-account flow.
-10. Verify receipt flow with mocked or sample Gemini responses before real API testing.
+1. 清理 `index.html` 結構，補回缺少的帳本/生活工具畫面。
+2. 建立 `src/` 模組資料夾，先搬狀態與 localStorage helper。
+3. 搬純邏輯服務：匯率、帳本、生活工具、菜單辨識。
+4. 搬相機工具。
+5. 搬 UI bridge。
+6. 搬 event bus，並透過 `main.js` 串起所有模組。
+7. 先驗證現有功能，再新增收據 OCR。
+8. 新增 receipt service 與收據結果狀態。
+9. 新增收據結果畫面與儲存到帳本流程。
+10. 先用模擬或範例 Gemini 回應驗證收據流程，再做真實 API 測試。
 
-## Non-Goals
+## 不做的事
 
-- Do not introduce Vite, npm, or a build pipeline in this phase.
-- Do not redesign the app visually.
-- Do not migrate to a framework.
-- Do not change localStorage key names unless a migration is explicitly added.
-- Do not rewrite unrelated archive files.
+- 這一階段不導入 Vite、npm 或 build pipeline。
+- 不重新設計 UI 視覺。
+- 不改用 React/Vue/Svelte 等框架。
+- 不更改既有 localStorage key，除非同時寫明確 migration。
+- 不修改無關的 archive 檔案。
