@@ -9,7 +9,6 @@ import { OrderService } from '../core/order-service.js';
 import { SplitService } from '../core/split-service.js';
 import { DeviceUtils } from '../device/camera.js';
 import { UIBridge } from '../ui/ui-bridge.js';
-import { views } from '../ui/views.js';
 
 /**
  * Event Bus - Orchestrates interactions between UI, Core Services, and State
@@ -79,7 +78,9 @@ export const EventBus = {
                 if (base64) {
                     appState.lastScanSource = 'camera';
                     this.handleScan(base64);
+                    return;
                 }
+                UIBridge.notify('目前無法擷取畫面，請稍後再試或改用照片上傳', 'warn');
             },
             'close-scanner': () => {
                 DeviceUtils.stopCamera();
@@ -89,8 +90,16 @@ export const EventBus = {
             'process-file-upload': async (file) => {
                  if (file) {
                     appState.lastScanSource = 'upload';
-                    const base64 = await DeviceUtils.processImageFile(file);
-                    this.handleScan(base64);
+                    try {
+                        const base64 = await DeviceUtils.processImageFile(file);
+                        this.handleScan(base64);
+                    } catch (error) {
+                        console.error(error);
+                        UIBridge.notify('照片讀取失敗，請重新選擇檔案', 'error');
+                        appState.scannerStatus = appState.stream ? 'ready' : 'error';
+                        UIBridge.updateScannerUI();
+                        this.dispatch('navigate', 'scanner');
+                    }
                 }
             },
             'start-new-scan-session': () => {
@@ -192,12 +201,20 @@ export const EventBus = {
                 try {
                     const text = await file.text();
                     const parsed = JSON.parse(text);
+                    const hasAppKeys = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                        && Object.keys(parsed).some(key => key.startsWith('menulens_'));
+                    if (!hasAppKeys) {
+                        throw new Error('invalid-backup');
+                    }
                     Storage.importBackup(parsed);
                     UIBridge.notify('已匯入備份資料，請重新整理畫面', 'success');
                     window.location.reload();
                 } catch (error) {
                     console.error(error);
                     UIBridge.notify('匯入失敗，請確認 JSON 格式', 'error');
+                } finally {
+                    const input = document.getElementById('import-data-input');
+                    if (input) input.value = '';
                 }
             },
             'share-data': async () => {
@@ -222,13 +239,13 @@ export const EventBus = {
             'view-history-item': (payload) => {
                 const order = appState.orderHistory.find(o => o.id === payload.id);
                 if (!order) return;
-                
-                const container = document.getElementById('history-view');
-                if (container) {
-                    container.innerHTML = views.renderHistoryDetailView(order);
-                }
-                // We just need to make sure the view is visible.
-                UIBridge.switchView('history');
+
+                appState.currentOrderPreview = {
+                    ...JSON.parse(JSON.stringify(order)),
+                    fromHistory: true
+                };
+                UIBridge.renderOrderPreview(appState.currentOrderPreview);
+                this.dispatch('navigate', 'order-preview');
             },
             'reuse-order': (payload) => {
                 if (OrderService.reuseOrder(payload.id)) {
@@ -352,6 +369,7 @@ export const EventBus = {
         document.getElementById('upload-btn').onclick = () => document.getElementById('file-input').click();
         document.getElementById('error-upload-btn').onclick = () => document.getElementById('file-input').click();
         document.getElementById('scanner-close-btn').onclick = () => this.dispatch('close-scanner');
+        document.getElementById('error-retry-camera-btn').onclick = () => this.dispatch('start-scan', { mode: appState.scannerMode });
         document.getElementById('file-input').onchange = (e) => this.dispatch('process-file-upload', e.target.files[0]);
 
         // Home / History / Finance / Receipt
@@ -428,8 +446,8 @@ export const EventBus = {
         } catch (error) {
             console.error(error);
             UIBridge.notify(error.message || '辨識失敗', 'error');
-            appState.scannerStatus = 'ready';
-            this.dispatch('navigate', 'home');
+            appState.scannerStatus = appState.stream ? 'ready' : 'error';
+            this.dispatch('navigate', 'scanner');
         } finally {
             UIBridge.updateScannerUI();
         }

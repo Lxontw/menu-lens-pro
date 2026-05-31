@@ -98,9 +98,14 @@
                         <i class="fas fa-exclamation-triangle text-4xl text-amber-400"></i>
                         <h4 class="text-lg font-bold">相機啟動失敗</h4>
                         <p class="text-white/60 text-sm leading-relaxed">可能是未授權相機權限或裝置不支援。您可以改用照片上傳進行辨識。</p>
-                        <button id="error-upload-btn" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform">
-                            從相簿選擇照片
-                        </button>
+                        <div class="flex flex-col gap-3">
+                            <button id="error-retry-camera-btn" class="px-6 py-3 bg-white/10 text-white rounded-xl font-bold text-sm border border-white/20 active:scale-95 transition-transform">
+                                重新啟動相機
+                            </button>
+                            <button id="error-upload-btn" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform">
+                                從相簿選擇照片
+                            </button>
+                        </div>
                     </div>
                     
                     <p id="camera-loading-text" class="text-white/50 text-sm">正在啟動相機...</p>

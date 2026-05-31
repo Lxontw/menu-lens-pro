@@ -71,19 +71,27 @@ function renderRecentUse(state) {
 
     return `
         <div class="space-y-3">
-            ${history.slice(0, 3).map(order => `
-                    <div class="bg-white rounded-2xl p-4 flex justify-between items-center shadow-sm border border-slate-100 active:scale-95 transition-transform cursor-pointer" onclick="EventBus.dispatch('view-history-item', { id: '${order.id}' })">
+            ${history.slice(0, 3).map(order => {
+                const orderItems = Array.isArray(order.items) ? order.items : [];
+                const totalAmount = typeof order.totalAmount === 'number'
+                    ? order.totalAmount
+                    : orderItems.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
+                const orderId = order.id || '';
+                const orderLabel = order.storeName || (orderId ? `訂單 #${orderId.slice(-6)}` : '未命名訂單');
+                return `
+                    <div class="bg-white rounded-2xl p-4 flex justify-between items-center shadow-sm border border-slate-100 active:scale-95 transition-transform cursor-pointer" onclick="EventBus.dispatch('view-history-item', { id: '${orderId}' })">
                         <div>
-                            <p class="font-bold text-slate-800">${order.storeName || `訂單 #${order.id.slice(-6)}`}</p>
-                            <p class="text-xs text-slate-400">${new Date(order.timestamp).toLocaleDateString()}</p>
+                            <p class="font-bold text-slate-800">${orderLabel}</p>
+                            <p class="text-xs text-slate-400">${new Date(order.timestamp || Date.now()).toLocaleDateString()}</p>
                         </div>
                         <div class="text-right">
-                             <p class="font-bold text-slate-800">¥${order.totalAmount.toLocaleString()}</p>
-                             <p class="text-xs text-slate-400">${order.items.length} 品項</p>
+                             <p class="font-bold text-slate-800">¥${Math.round(totalAmount).toLocaleString()}</p>
+                             <p class="text-xs text-slate-400">${orderItems.length} 品項</p>
                         </div>
                     </div>
-                `).join('')}
-             ${history.length > 3 ? `<button onclick="UIBridge.switchView('history')" class="w-full text-center text-sm font-bold text-indigo-600 py-3 hover:bg-indigo-50 rounded-xl">查看全部歷史紀錄</button>` : ''}
+                `;
+            }).join('')}
+             ${history.length > 3 ? `<button onclick="EventBus.dispatch('navigate', 'history')" class="w-full text-center text-sm font-bold text-indigo-600 py-3 hover:bg-indigo-50 rounded-xl">查看全部歷史紀錄</button>` : ''}
         </div>
     `;
 }
@@ -125,7 +133,12 @@ export const views = {
             `;
         }
 
-        const itemsHtml = order.items.map(item => `
+        const items = Array.isArray(order.items) ? order.items : [];
+        const orderId = order.id || '';
+        const totalAmount = typeof order.totalAmount === 'number'
+            ? order.totalAmount
+            : items.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
+        const itemsHtml = items.map(item => `
             <li class="flex justify-between items-center py-3 border-b border-slate-100">
                 <div class="flex-1 min-w-0 pr-4">
                     <p class="font-bold text-slate-800 truncate">${UIBridge.escapeHTML(item.nameTranslated || item.name)}</p>
@@ -145,7 +158,7 @@ export const views = {
                         <i class="fas fa-arrow-left"></i>
                     </button>
                     <div>
-                        <h3 class="text-lg font-bold">${order.storeName || `訂單 #${order.id.slice(-6)}`}</h3>
+                        <h3 class="text-lg font-bold">${order.storeName || `訂單 #${orderId.slice(-6)}`}</h3>
                         <p class="text-xs text-slate-500">${new Date(order.timestamp).toLocaleString()}</p>
                     </div>
                 </header>
@@ -156,7 +169,7 @@ export const views = {
                             <h4 class="font-bold text-slate-800 mb-2">訂單總計</h4>
                             <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex justify-between items-center">
                                 <span class="text-slate-500">總金額</span>
-                                <span class="text-2xl font-bold text-slate-900">¥${order.totalAmount.toLocaleString()}</span>
+                                <span class="text-2xl font-bold text-slate-900">¥${Math.round(totalAmount).toLocaleString()}</span>
                             </div>
                         </div>
                         

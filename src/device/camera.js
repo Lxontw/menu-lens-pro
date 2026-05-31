@@ -1,4 +1,5 @@
 import { appState } from '../state/app-state.js';
+import { UIBridge } from '../ui/ui-bridge.js';
 
 /**
  * Camera & Device Utilities

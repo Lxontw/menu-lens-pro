@@ -38,3 +38,5 @@ export const appState = {
     },
     receiptResult: null
 };
+
+globalThis.__appState = appState;

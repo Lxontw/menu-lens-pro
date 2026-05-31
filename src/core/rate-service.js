@@ -9,10 +9,18 @@ export const RateService = {
         return Storage.getCustomRate(currency);
     },
 
+    getExchangeRate(currency) {
+        if (currency === 'JPY') return 1;
+        if (appState.settings.currency === currency && appState.settings.customRate > 0) {
+            return appState.settings.customRate;
+        }
+        return this.getStoredRate(currency);
+    },
+
     async resolveRate(currency) {
         if (currency === 'JPY') return 1;
 
-        const storedRate = this.getStoredRate(currency);
+        const storedRate = this.getExchangeRate(currency);
         if (storedRate && storedRate > 0) {
             return storedRate;
         }

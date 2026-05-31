@@ -1,4 +1,8 @@
-import { appState } from '../state/app-state.js';
+const APP_KEY_PREFIX = 'menulens_';
+
+function getAppState() {
+    return globalThis.__appState || null;
+}
 
 /**
  * Storage Helper
@@ -18,6 +22,9 @@ export const Storage = {
     },
 
     saveSettings() {
+        const appState = getAppState();
+        if (!appState) return;
+
         localStorage.setItem('menulens_api_key', appState.settings.apiKey);
         localStorage.setItem('menulens_model', appState.settings.model);
         localStorage.setItem('menulens_currency', appState.settings.currency);
@@ -33,46 +40,68 @@ export const Storage = {
     },
 
     saveFavorites() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_favorites', JSON.stringify(appState.favorites));
     },
 
     saveOrder() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_current_order', JSON.stringify(appState.order));
     },
 
     saveLastResults() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_last_results', JSON.stringify(appState.results));
     },
 
     saveOrderHistory() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_order_history', JSON.stringify(appState.orderHistory));
     },
 
     saveCurrentBill() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_current_bill', JSON.stringify(appState.currentBill));
     },
 
     saveFinance() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_accounts', JSON.stringify(appState.financeModule.accounts));
     },
 
     saveCurrentAccount() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_current_account_id', appState.currentAccountId || '');
     },
 
     exportBackup() {
         const backup = {};
         Object.keys(localStorage)
-            .filter(key => key.startsWith('menulens_'))
+            .filter(key => key.startsWith(APP_KEY_PREFIX))
             .forEach(key => {
                 backup[key] = localStorage.getItem(key);
             });
         return backup;
     },
 
+    clearAppData() {
+        Object.keys(localStorage)
+            .filter(key => key.startsWith(APP_KEY_PREFIX))
+            .forEach(key => localStorage.removeItem(key));
+    },
+
     importBackup(backupData = {}) {
+        this.clearAppData();
+
         Object.entries(backupData).forEach(([key, value]) => {
-            if (!key.startsWith('menulens_')) return;
+            if (!key.startsWith(APP_KEY_PREFIX)) return;
             if (typeof value === 'string') {
                 localStorage.setItem(key, value);
             } else {
@@ -82,6 +111,8 @@ export const Storage = {
     },
 
     saveLifeTools() {
+        const appState = getAppState();
+        if (!appState) return;
         localStorage.setItem('menulens_reminders', JSON.stringify(appState.lifeToolsModule.reminders));
         localStorage.setItem('menulens_memos', JSON.stringify(appState.lifeToolsModule.memos));
     },
